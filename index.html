@@ -26,6 +26,53 @@
     --radius-sm: 6px;
   }
 
+  /* ---- Twilight theme ---- */
+  [data-theme="twilight"] {
+    --bg: #1c1a14;
+    --surface: #28251a;
+    --surface2: #333020;
+    --border: #46422e;
+    --text: #f0ead8;
+    --muted: #9e9880;
+    --accent: #e8a020;
+    --accent2: #c4841a;
+    --green: #6bbf50;
+    --yellow: #f5c842;
+    --orange: #f5832e;
+    --red: #e84040;
+    --tile-cheap: #3a3628;
+    --tile-mid: #f0ead8;
+    --tile-premium: #f5c842;
+    --tile-hot: #f5832e;
+  }
+
+  /* ---- Noon theme ---- */
+  [data-theme="noon"] {
+    --bg: #f0f0f5;
+    --surface: #ffffff;
+    --surface2: #e8e8f0;
+    --border: #d0d0de;
+    --text: #111118;
+    --muted: #666680;
+    --accent: #5e44e8;
+    --accent2: #4a33c4;
+    --green: #1a9e64;
+    --yellow: #c4960a;
+    --orange: #d46018;
+    --red: #c42020;
+    --tile-cheap: #d8d8e8;
+    --tile-mid: #333344;
+    --tile-premium: #c4960a;
+    --tile-hot: #d46018;
+  }
+  [data-theme="noon"] .tile-mid { color: #f0f0f5; }
+  [data-theme="noon"] input[type="text"],
+  [data-theme="noon"] input[type="number"],
+  [data-theme="noon"] select { background: #fff; }
+  [data-theme="noon"] .round-summary.green { background: #d8f5ea; }
+  [data-theme="noon"] .round-summary.yellow { background: #fdf3cc; }
+  [data-theme="noon"] .round-summary.red { background: #fde0e0; }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -297,6 +344,22 @@
   .forget-link { font-size: 12px; color: var(--muted); cursor: pointer; text-decoration: underline; margin-top: 10px; display: inline-block; }
   .forget-link:hover { color: var(--red); }
 
+  /* Theme switcher */
+  .theme-switcher {
+    position: fixed; top: 12px; right: 14px; z-index: 200;
+    display: flex; gap: 3px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 3px;
+  }
+  .theme-btn {
+    padding: 4px 11px; border-radius: 16px; border: none;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    background: transparent; color: var(--muted);
+    transition: all 0.15s;
+  }
+  .theme-btn.active { background: var(--accent); color: #fff; }
+  .theme-btn:not(.active):hover { color: var(--text); }
+
   /* Responsive: hide rail below 700px */
   @media (max-width: 700px) {
     #game-screen { flex-direction: column; }
@@ -481,6 +544,13 @@
     </div>
   </div>
 
+</div>
+
+<!-- Theme switcher (always visible) -->
+<div class="theme-switcher" id="theme-switcher">
+  <button class="theme-btn active" data-theme="dark">dark</button>
+  <button class="theme-btn" data-theme="twilight">twilight</button>
+  <button class="theme-btn" data-theme="noon">noon</button>
 </div>
 
 <!-- Meta-round banner overlay (injected dynamically) -->
@@ -1170,9 +1240,29 @@ function esc(str) {
 }
 
 // =====================================================================
+// THEME
+// =====================================================================
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme === 'dark' ? '' : theme;
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === theme);
+  });
+  localStorage.setItem('flux_theme', theme);
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('flux_theme') || 'dark';
+  applyTheme(saved);
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
+  });
+}
+
+// =====================================================================
 // BOOT
 // =====================================================================
 function boot() {
+  initTheme();
   initSetupScreen();
 
   // Try resuming from localStorage
