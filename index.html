@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flux</title>
+<style>
+  :root {
+    --bg: #0f0f13;
+    --surface: #1a1a23;
+    --surface2: #22222e;
+    --border: #2e2e3e;
+    --text: #e8e8f0;
+    --muted: #888899;
+    --accent: #7c6af7;
+    --accent2: #5e54c4;
+    --green: #3ecf8e;
+    --yellow: #f5c842;
+    --orange: #f5832e;
+    --red: #e84040;
+    --tile-cheap: #3a3a4a;
+    --tile-mid: #e8e8f0;
+    --tile-premium: #f5c842;
+    --tile-hot: #f5832e;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    min-height: 100vh;
+  }
+
+  /* ---- Layout ---- */
+  #app { min-height: 100vh; display: flex; flex-direction: column; }
+
+  .screen { display: none; }
+  .screen.active { display: flex; flex-direction: column; flex: 1; }
+
+  /* ---- Shared ---- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border: none; border-radius: var(--radius-sm);
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    text-decoration: none;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: var(--accent2); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--accent); }
+  .btn-danger { background: #3a1a1a; color: var(--red); border: 1px solid var(--red); }
+  .btn-ghost { background: transparent; color: var(--muted); font-size: 12px; padding: 4px 8px; }
+  .btn-ghost:hover { color: var(--text); }
+  .btn-full { width: 100%; }
+
+  input[type="text"], input[type="number"], select {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: var(--radius-sm);
+    padding: 10px 14px; font-size: 14px; width: 100%;
+    outline: none; transition: border-color 0.15s;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+
+  .field { margin-bottom: 14px; }
+
+  .error-msg { color: var(--red); font-size: 13px; margin-top: 6px; min-height: 18px; }
+
+  /* ---- Setup Screen ---- */
+  #setup-screen {
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .setup-wrap { width: 100%; max-width: 420px; }
+  .logo { font-size: 42px; font-weight: 900; letter-spacing: -2px; color: var(--accent); margin-bottom: 4px; }
+  .logo-sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+
+  .setup-tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+  .setup-tab {
+    flex: 1; padding: 9px; border-radius: var(--radius-sm); cursor: pointer;
+    text-align: center; font-size: 13px; font-weight: 600;
+    background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+  .setup-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .setup-panel { display: none; }
+  .setup-panel.active { display: block; }
+
+  .setting-row {
+    display: flex; gap: 8px; margin-bottom: 8px;
+  }
+  .setting-opt {
+    flex: 1; padding: 9px; text-align: center; border-radius: var(--radius-sm);
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+  .setting-opt.selected { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* ---- Lobby Screen ---- */
+  #lobby-screen { align-items: center; justify-content: center; padding: 20px; }
+  .lobby-wrap { width: 100%; max-width: 420px; }
+  .lobby-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .lobby-sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .lobby-link-box {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 14px;
+    font-size: 13px; color: var(--muted); margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .lobby-link-box:hover { border-color: var(--accent); }
+  .lobby-link-url { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 12px; color: var(--text); }
+  .player-list { margin-bottom: 16px; }
+  .player-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .player-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .player-you { font-size: 11px; color: var(--accent); font-weight: 600; margin-left: auto; }
+
+  /* ---- Game Screen ---- */
+  #game-screen { display: flex; flex-direction: row; flex: 1; overflow: hidden; }
+  .game-main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 20px; gap: 16px; min-width: 0; }
+  .game-rail {
+    width: 280px; flex-shrink: 0; display: flex; flex-direction: column;
+    border-left: 1px solid var(--border); overflow: hidden;
+  }
+
+  /* Rack */
+  .rack-wrap { }
+  .rack-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .rack-tiles { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .tile {
+    width: 58px; height: 70px;
+    border-radius: var(--radius-sm);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-weight: 800; position: relative; flex-shrink: 0;
+    transition: transform 0.15s;
+    border: 2px solid transparent;
+  }
+  .tile.used { border-color: var(--accent); }
+  .tile-letter { font-size: 26px; line-height: 1; }
+  .tile-value { font-size: 11px; font-weight: 700; opacity: 0.8; margin-top: 2px; }
+  .tile-cheap { background: var(--tile-cheap); color: var(--muted); }
+  .tile-mid { background: var(--tile-mid); color: #111; }
+  .tile-premium { background: var(--tile-premium); color: #111; }
+  .tile-hot { background: var(--tile-hot); color: #fff; }
+
+  /* Spin animation */
+  @keyframes spin-in {
+    0%   { transform: rotateX(90deg) scale(0.8); opacity: 0; }
+    60%  { transform: rotateX(-8deg) scale(1.03); }
+    100% { transform: rotateX(0deg) scale(1); opacity: 1; }
+  }
+  .tile.spinning { animation: spin-in 0.45s ease forwards; }
+
+  /* Word input */
+  .input-wrap { }
+  .word-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  #word-input { font-size: 18px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+  .score-preview {
+    font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px;
+    min-height: 20px; margin-bottom: 8px;
+  }
+  .score-preview .pts { color: var(--green); font-weight: 700; font-size: 15px; }
+  .score-preview .invalid { color: var(--red); }
+  .word-actions { display: flex; gap: 8px; }
+
+  /* Submitted state */
+  .submitted-banner {
+    background: var(--surface2); border: 1px solid var(--green);
+    border-radius: var(--radius-sm); padding: 12px 16px;
+    color: var(--green); font-weight: 600; font-size: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .waiting-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .waiting-pill {
+    font-size: 12px; padding: 3px 10px; border-radius: 20px;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+  }
+  .waiting-pill.done { border-color: var(--green); color: var(--green); }
+
+  /* Scoreboard */
+  .scoreboard { }
+  .score-rows { display: flex; flex-direction: column; gap: 8px; }
+  .score-row { }
+  .score-row-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .score-name { font-weight: 700; font-size: 14px; }
+  .score-name.you::after { content: " (you)"; color: var(--accent); font-size: 11px; font-weight: 600; }
+  .score-pts { margin-left: auto; font-weight: 800; font-size: 16px; }
+  .score-meta { font-size: 11px; color: var(--muted); margin-left: 4px; }
+  .progress-bar {
+    height: 5px; background: var(--border); border-radius: 3px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: var(--accent); border-radius: 3px;
+    transition: width 0.4s ease;
+  }
+  .word-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+  .word-chip {
+    font-size: 11px; padding: 2px 8px; border-radius: 20px;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+  }
+
+  /* Round summary */
+  .round-summary {
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    font-size: 14px;
+  }
+  .round-summary.green { background: #0e2a1e; border: 1px solid var(--green); }
+  .round-summary.yellow { background: #2a2208; border: 1px solid var(--yellow); }
+  .round-summary.red { background: #2a0e0e; border: 1px solid var(--red); }
+  .summary-headline { font-weight: 700; margin-bottom: 6px; }
+  .summary-results { display: flex; flex-direction: column; gap: 3px; }
+  .summary-row { display: flex; gap: 8px; font-size: 13px; }
+  .summary-word { font-weight: 700; font-family: monospace; }
+  .summary-player { color: var(--muted); }
+  .summary-pts { margin-left: auto; color: var(--green); font-weight: 700; }
+
+  /* Rail */
+  .rail-chat { flex: 1; display: flex; flex-direction: column; border-bottom: 1px solid var(--border); min-height: 0; }
+  .rail-history { flex: 1; overflow-y: auto; padding: 10px; min-height: 0; }
+  .rail-section-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; padding: 8px 10px 4px; flex-shrink: 0; }
+
+  .chat-messages { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+  .chat-msg { font-size: 13px; line-height: 1.4; }
+  .chat-user { font-weight: 700; color: var(--accent); }
+  .chat-form { display: flex; gap: 6px; padding: 8px 10px; flex-shrink: 0; border-top: 1px solid var(--border); }
+  .chat-input { flex: 1; padding: 7px 10px; font-size: 13px; }
+  .chat-send { padding: 7px 12px; font-size: 13px; }
+
+  .history-round {
+    margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .history-round:last-child { border-bottom: none; }
+  .history-round-label { font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+  .history-tiles { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 4px; }
+  .history-tile {
+    padding: 2px 5px; border-radius: 4px; font-size: 11px; font-weight: 700;
+    background: var(--surface2); border: 1px solid var(--border);
+  }
+  .history-result { color: var(--muted); }
+  .history-result strong { color: var(--text); }
+
+  /* Meta-round banner overlay */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+    display: flex; align-items: center; justify-content: center; z-index: 100;
+    padding: 20px;
+  }
+  .overlay-card { width: 100%; max-width: 440px; }
+  .overlay-title { font-size: 26px; font-weight: 900; margin-bottom: 6px; }
+  .overlay-sub { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  .overlay-scores { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+  .overlay-score-row { display: flex; align-items: center; gap: 10px; }
+  .overlay-meta-wins { font-size: 22px; font-weight: 900; color: var(--accent); min-width: 30px; }
+  .overlay-player-name { font-size: 15px; font-weight: 600; flex: 1; }
+  .overlay-player-score { font-size: 13px; color: var(--muted); }
+  .crown { color: var(--yellow); }
+
+  /* Game over */
+  #gameover-screen { align-items: center; justify-content: center; padding: 20px; }
+  .gameover-wrap { width: 100%; max-width: 440px; text-align: center; }
+  .gameover-trophy { font-size: 64px; margin-bottom: 12px; }
+  .gameover-title { font-size: 28px; font-weight: 900; margin-bottom: 6px; }
+  .gameover-sub { color: var(--muted); margin-bottom: 28px; }
+  .final-scores { margin-bottom: 28px; text-align: left; }
+  .final-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .final-rank { font-size: 20px; font-weight: 900; color: var(--muted); min-width: 28px; }
+  .final-name { flex: 1; font-weight: 600; }
+  .final-wins { color: var(--accent); font-weight: 700; }
+
+  /* Forget link */
+  .forget-link { font-size: 12px; color: var(--muted); cursor: pointer; text-decoration: underline; margin-top: 10px; display: inline-block; }
+  .forget-link:hover { color: var(--red); }
+
+  /* Responsive: hide rail below 700px */
+  @media (max-width: 700px) {
+    #game-screen { flex-direction: column; }
+    .game-rail { width: 100%; height: 200px; border-left: none; border-top: 1px solid var(--border); flex-direction: row; }
+    .rail-chat { flex: 1; border-bottom: none; border-right: 1px solid var(--border); }
+    .rail-history { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══════════════════════════════ SETUP SCREEN ═══════════════════════════════ -->
+  <div id="setup-screen" class="screen">
+    <div class="setup-wrap">
+      <div class="logo">FLUX</div>
+      <div class="logo-sub">Multiplayer word scoring — values change every round</div>
+
+      <div class="setup-tabs">
+        <div class="setup-tab active" data-tab="create">Create</div>
+        <div class="setup-tab" data-tab="join">Join</div>
+      </div>
+
+      <!-- Create panel -->
+      <div class="setup-panel active card" id="panel-create">
+        <div class="field">
+          <label>Your username</label>
+          <input type="text" id="create-username" maxlength="30" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Meta-rounds</label>
+          <div class="setting-row" id="meta-rounds-opts">
+            <div class="setting-opt selected" data-val="1">1</div>
+            <div class="setting-opt" data-val="3">3</div>
+            <div class="setting-opt" data-val="5">5</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Score target</label>
+          <div class="setting-row" id="score-target-opts">
+            <div class="setting-opt" data-val="100">100</div>
+            <div class="setting-opt selected" data-val="200">200</div>
+            <div class="setting-opt" data-val="500">500</div>
+            <div class="setting-opt" data-val="1000">1000</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Max players</label>
+          <div class="setting-row" id="max-players-opts">
+            <div class="setting-opt selected" data-val="2">2</div>
+            <div class="setting-opt" data-val="3">3</div>
+            <div class="setting-opt" data-val="4">4</div>
+            <div class="setting-opt" data-val="6">6</div>
+          </div>
+        </div>
+        <div class="error-msg" id="create-error"></div>
+        <button class="btn btn-primary btn-full" id="create-btn">Create Game</button>
+      </div>
+
+      <!-- Join panel -->
+      <div class="setup-panel card" id="panel-join">
+        <div class="field">
+          <label>Your username</label>
+          <input type="text" id="join-username" maxlength="30" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>Game ID</label>
+          <input type="text" id="join-gameid" maxlength="8" autocomplete="off" style="text-transform:uppercase;letter-spacing:2px;">
+        </div>
+        <div class="error-msg" id="join-error"></div>
+        <button class="btn btn-primary btn-full" id="join-btn">Join Game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ LOBBY SCREEN ═══════════════════════════════ -->
+  <div id="lobby-screen" class="screen">
+    <div class="lobby-wrap">
+      <div class="lobby-title">Waiting for players…</div>
+      <div class="lobby-sub" id="lobby-sub">Share this link with friends:</div>
+
+      <div class="lobby-link-box" id="lobby-link-box" title="Click to copy">
+        <span>🔗</span>
+        <span class="lobby-link-url" id="lobby-link-url"></span>
+        <span id="lobby-copy-label" style="font-size:12px;color:var(--muted);">copy</span>
+      </div>
+
+      <div class="player-list" id="lobby-player-list"></div>
+
+      <div class="error-msg" id="lobby-error"></div>
+      <button class="btn btn-primary btn-full" id="lobby-start-btn" style="display:none;">Start Game</button>
+      <div style="margin-top:8px;text-align:center;">
+        <span class="forget-link" id="lobby-forget">Forget this game</span>
+      </div>
+
+      <div style="margin-top:20px;">
+        <div class="rail-section-label" style="padding:0 0 8px;">Chat</div>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div id="lobby-chat-messages" class="chat-messages" style="height:160px;"></div>
+          <div class="chat-form">
+            <input type="text" id="lobby-chat-input" class="chat-input" placeholder="Message…" maxlength="200">
+            <button class="btn btn-secondary chat-send" id="lobby-chat-send">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ GAME SCREEN ═══════════════════════════════ -->
+  <div id="game-screen" class="screen">
+
+    <!-- Main area -->
+    <div class="game-main">
+
+      <!-- Rack -->
+      <div class="rack-wrap card">
+        <div class="rack-label">Round <span id="round-num">1</span> — Meta-round <span id="meta-round-num">1</span></div>
+        <div class="rack-tiles" id="rack-tiles"></div>
+      </div>
+
+      <!-- Word input (or submitted state) -->
+      <div class="card" id="input-card">
+        <div id="play-area">
+          <div class="word-row">
+            <input type="text" id="word-input" placeholder="Type a word…" maxlength="20" autocomplete="off" autocorrect="off" spellcheck="false">
+          </div>
+          <div class="score-preview" id="score-preview"></div>
+          <div class="word-actions">
+            <button class="btn btn-primary" id="submit-btn">Submit</button>
+            <button class="btn btn-secondary" id="pass-btn">Pass</button>
+          </div>
+          <div class="error-msg" id="play-error"></div>
+        </div>
+        <div id="submitted-area" style="display:none;">
+          <div class="submitted-banner">✅ Submitted — waiting for others…</div>
+          <div class="waiting-pills" id="waiting-pills"></div>
+        </div>
+      </div>
+
+      <!-- Round summary -->
+      <div id="round-summary-wrap" style="display:none;"></div>
+
+      <!-- Scoreboard -->
+      <div class="card scoreboard">
+        <div class="rack-label" style="margin-bottom:12px;">Scoreboard</div>
+        <div class="score-rows" id="score-rows"></div>
+      </div>
+
+    </div>
+
+    <!-- Right rail -->
+    <div class="game-rail">
+      <!-- Chat -->
+      <div class="rail-chat">
+        <div class="rail-section-label">Chat</div>
+        <div class="chat-messages" id="game-chat-messages"></div>
+        <div class="chat-form">
+          <input type="text" id="game-chat-input" class="chat-input" placeholder="Message…" maxlength="200">
+          <button class="btn btn-secondary chat-send" id="game-chat-send">Send</button>
+        </div>
+      </div>
+      <!-- History -->
+      <div style="display:flex;flex-direction:column;flex:1;min-height:0;">
+        <div class="rail-section-label">Board History</div>
+        <div class="rail-history" id="rail-history"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════ GAME OVER SCREEN ═══════════════════════════════ -->
+  <div id="gameover-screen" class="screen">
+    <div class="gameover-wrap">
+      <div class="gameover-trophy">🏆</div>
+      <div class="gameover-title" id="gameover-title">Match Over!</div>
+      <div class="gameover-sub" id="gameover-sub"></div>
+      <div class="final-scores" id="final-scores"></div>
+      <button class="btn btn-primary btn-full" id="rematch-btn">Rematch</button>
+      <div style="text-align:center;">
+        <span class="forget-link" id="gameover-forget">Forget this game</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Meta-round banner overlay (injected dynamically) -->
+
+<script>
+// =====================================================================
+// CONFIG
+// =====================================================================
+const API_BASE = (() => {
+  // Allow override via ?api= query param for local dev
+  const p = new URLSearchParams(location.search);
+  if (p.get('api')) return p.get('api').replace(/\/$/, '');
+  // Default: same origin in production, localhost for dev
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    return 'http://localhost:7860';
+  }
+  // HuggingFace Spaces URL — user should override this with ?api=
+  return 'https://YOUR-HF-SPACE.hf.space';
+})();
+
+// =====================================================================
+// STATE
+// =====================================================================
+let state = {
+  gameId: null,
+  playerToken: null,
+  myUsername: null,
+  isCreator: false,
+  game: null,
+  pollTimer: null,
+  lastRoundNum: null,
+  lastRoundSubmitted: false, // track whether we already showed submitted for this round
+  previewTimer: null,
+  chatScrolled: { lobby: true, game: true },
+};
+
+// =====================================================================
+// PERSISTENCE
+// =====================================================================
+function saveSession() {
+  localStorage.setItem('flux_gameId', state.gameId || '');
+  localStorage.setItem('flux_playerToken', state.playerToken || '');
+  localStorage.setItem('flux_username', state.myUsername || '');
+}
+function clearSession() {
+  localStorage.removeItem('flux_gameId');
+  localStorage.removeItem('flux_playerToken');
+  localStorage.removeItem('flux_username');
+  state.gameId = null;
+  state.playerToken = null;
+  state.myUsername = null;
+  state.isCreator = false;
+  state.game = null;
+}
+function loadLastUsername() {
+  return localStorage.getItem('flux_username') || '';
+}
+function loadLastSettings() {
+  return {
+    numMetaRounds: parseInt(localStorage.getItem('flux_numMetaRounds') || '3'),
+    scoreTarget:   parseInt(localStorage.getItem('flux_scoreTarget')   || '200'),
+    maxPlayers:    parseInt(localStorage.getItem('flux_maxPlayers')    || '2'),
+  };
+}
+function saveSettings(s) {
+  localStorage.setItem('flux_numMetaRounds', s.numMetaRounds);
+  localStorage.setItem('flux_scoreTarget',   s.scoreTarget);
+  localStorage.setItem('flux_maxPlayers',    s.maxPlayers);
+}
+
+// =====================================================================
+// API
+// =====================================================================
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const resp = await fetch(API_BASE + path, opts);
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+  return data;
+}
+
+// =====================================================================
+// SHOW / HIDE SCREENS
+// =====================================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  if (el) el.classList.add('active');
+}
+
+// =====================================================================
+// SETUP SCREEN
+// =====================================================================
+function initSetupScreen() {
+  // Pre-fill username
+  const savedUser = loadLastUsername();
+  document.getElementById('create-username').value = savedUser;
+  document.getElementById('join-username').value = savedUser;
+
+  // Pre-fill game ID from URL ?game=
+  const urlGame = new URLSearchParams(location.search).get('game');
+  if (urlGame) {
+    document.getElementById('join-gameid').value = urlGame.toUpperCase();
+    switchTab('join');
+  }
+
+  // Pre-fill settings
+  const s = loadLastSettings();
+  selectOpt('meta-rounds-opts', s.numMetaRounds);
+  selectOpt('score-target-opts', s.scoreTarget);
+  selectOpt('max-players-opts', s.maxPlayers);
+
+  // Tab switching
+  document.querySelectorAll('.setup-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+  });
+
+  // Setting option clicks
+  ['meta-rounds-opts', 'score-target-opts', 'max-players-opts'].forEach(id => {
+    document.getElementById(id).querySelectorAll('.setting-opt').forEach(opt => {
+      opt.addEventListener('click', () => selectOpt(id, parseInt(opt.dataset.val)));
+    });
+  });
+
+  document.getElementById('create-btn').addEventListener('click', doCreate);
+  document.getElementById('join-btn').addEventListener('click', doJoin);
+
+  document.getElementById('create-username').addEventListener('keydown', e => { if (e.key === 'Enter') doCreate(); });
+  document.getElementById('join-gameid').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+  document.getElementById('join-username').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.setup-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.setup-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+function selectOpt(containerId, val) {
+  const container = document.getElementById(containerId);
+  container.querySelectorAll('.setting-opt').forEach(opt => {
+    opt.classList.toggle('selected', parseInt(opt.dataset.val) === val);
+  });
+}
+
+function getSelectedOpt(containerId) {
+  const sel = document.querySelector(`#${containerId} .setting-opt.selected`);
+  return sel ? parseInt(sel.dataset.val) : null;
+}
+
+async function doCreate() {
+  const username = document.getElementById('create-username').value.trim();
+  const err = document.getElementById('create-error');
+  err.textContent = '';
+  if (!username) { err.textContent = 'Enter a username.'; return; }
+
+  const settings = {
+    numMetaRounds: getSelectedOpt('meta-rounds-opts') || 3,
+    scoreTarget:   getSelectedOpt('score-target-opts') || 200,
+    maxPlayers:    getSelectedOpt('max-players-opts') || 2,
+  };
+  saveSettings(settings);
+
+  const btn = document.getElementById('create-btn');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    const data = await api('POST', '/flux', {
+      username,
+      num_meta_rounds: settings.numMetaRounds,
+      score_target:    settings.scoreTarget,
+      max_players:     settings.maxPlayers,
+    });
+    state.gameId = data.game_id;
+    state.playerToken = data.player_token;
+    state.myUsername = username;
+    state.isCreator = true;
+    saveSession();
+    enterLobby();
+  } catch(e) {
+    err.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create Game';
+  }
+}
+
+async function doJoin() {
+  const username = document.getElementById('join-username').value.trim();
+  const gameId = document.getElementById('join-gameid').value.trim().toUpperCase();
+  const err = document.getElementById('join-error');
+  err.textContent = '';
+  if (!username) { err.textContent = 'Enter a username.'; return; }
+  if (!gameId)   { err.textContent = 'Enter a game ID.'; return; }
+
+  const btn = document.getElementById('join-btn');
+  btn.disabled = true; btn.textContent = 'Joining…';
+  try {
+    const data = await api('POST', `/flux/${gameId}/join`, { username });
+    state.gameId = data.game_id;
+    state.playerToken = data.player_token;
+    state.myUsername = data.username;
+    state.isCreator = false;
+    saveSession();
+    enterLobby();
+  } catch(e) {
+    err.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Join Game';
+  }
+}
+
+// =====================================================================
+// LOBBY
+// =====================================================================
+function enterLobby() {
+  showScreen('lobby-screen');
+  startPolling();
+  initLobbyUI();
+}
+
+function initLobbyUI() {
+  const shareUrl = `${location.origin}${location.pathname}?game=${state.gameId}`;
+  document.getElementById('lobby-link-url').textContent = shareUrl;
+  document.getElementById('lobby-link-box').onclick = () => {
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      document.getElementById('lobby-copy-label').textContent = 'copied!';
+      setTimeout(() => document.getElementById('lobby-copy-label').textContent = 'copy', 1500);
+    });
+  };
+
+  // Start button (creator only)
+  const startBtn = document.getElementById('lobby-start-btn');
+  startBtn.style.display = state.isCreator ? 'block' : 'none';
+  startBtn.onclick = async () => {
+    startBtn.disabled = true;
+    try {
+      const data = await api('POST', `/flux/${state.gameId}/start`, { player_token: state.playerToken });
+      handleGameState(data);
+    } catch(e) {
+      document.getElementById('lobby-error').textContent = e.message;
+      startBtn.disabled = false;
+    }
+  };
+
+  document.getElementById('lobby-forget').onclick = () => {
+    if (confirm('Forget this game and return to setup?')) {
+      clearSession();
+      stopPolling();
+      showScreen('setup-screen');
+    }
+  };
+
+  // Chat
+  const input = document.getElementById('lobby-chat-input');
+  const send = document.getElementById('lobby-chat-send');
+  const doChat = async () => {
+    const msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+    try { await api('POST', `/flux/${state.gameId}/chat`, { player_token: state.playerToken, message: msg }); } catch(e){}
+  };
+  send.onclick = doChat;
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') doChat(); });
+}
+
+function renderLobby(game) {
+  const list = document.getElementById('lobby-player-list');
+  list.innerHTML = game.players.map(p => `
+    <div class="player-row">
+      <div class="player-dot"></div>
+      <span>${esc(p.username)}</span>
+      ${p.username === state.myUsername ? '<span class="player-you">you</span>' : ''}
+    </div>
+  `).join('');
+
+  const startBtn = document.getElementById('lobby-start-btn');
+  if (state.isCreator) {
+    startBtn.style.display = 'block';
+    startBtn.disabled = game.players.length < 2;
+    startBtn.textContent = game.players.length < 2
+      ? 'Waiting for players…'
+      : `Start Game (${game.players.length}/${game.max_players})`;
+  }
+
+  renderChat(game.chat, 'lobby-chat-messages');
+}
+
+// =====================================================================
+// GAME
+// =====================================================================
+function enterGame(game) {
+  showScreen('game-screen');
+  state.lastRoundNum = game.round_num;
+  initGameInput();
+  initGameChat();
+  document.getElementById('gameover-forget').onclick = () => {
+    if (confirm('Forget this game and return to setup?')) {
+      clearSession();
+      stopPolling();
+      showScreen('setup-screen');
+    }
+  };
+  renderGame(game);
+}
+
+function initGameInput() {
+  const input = document.getElementById('word-input');
+  input.addEventListener('input', onWordInput);
+  document.getElementById('submit-btn').onclick = doSubmit;
+  document.getElementById('pass-btn').onclick = doPass;
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') doSubmit(); });
+}
+
+function initGameChat() {
+  const input = document.getElementById('game-chat-input');
+  const send  = document.getElementById('game-chat-send');
+  const doChat = async () => {
+    const msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+    try { await api('POST', `/flux/${state.gameId}/chat`, { player_token: state.playerToken, message: msg }); } catch(e){}
+  };
+  send.onclick = doChat;
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') doChat(); });
+}
+
+let previewAbort = null;
+function onWordInput() {
+  const word = document.getElementById('word-input').value.toUpperCase();
+  if (!word) {
+    document.getElementById('score-preview').innerHTML = '';
+    highlightUsedTiles([]);
+    return;
+  }
+  highlightUsedTiles(word.split(''));
+  // Debounce check_word
+  if (previewAbort) clearTimeout(previewAbort);
+  previewAbort = setTimeout(async () => {
+    if (!word || word.length < 2) {
+      document.getElementById('score-preview').innerHTML = '';
+      return;
+    }
+    try {
+      const res = await api('POST', `/flux/${state.gameId}/check_word`, { player_token: state.playerToken, word });
+      if (res.in_dictionary) {
+        document.getElementById('score-preview').innerHTML = `<span class="pts">+${res.points}</span> pts`;
+      } else {
+        document.getElementById('score-preview').innerHTML = `<span class="invalid">Not valid</span>`;
+      }
+    } catch(e) {
+      document.getElementById('score-preview').innerHTML = '';
+    }
+  }, 300);
+}
+
+function highlightUsedTiles(letters) {
+  const game = state.game;
+  if (!game) return;
+  // For each tile, mark used if that letter is present in the typed letters
+  const letterSet = new Set(letters);
+  document.querySelectorAll('.tile[data-letter]').forEach(tile => {
+    tile.classList.toggle('used', letterSet.has(tile.dataset.letter));
+  });
+}
+
+async function doSubmit() {
+  const word = document.getElementById('word-input').value.trim();
+  const err = document.getElementById('play-error');
+  err.textContent = '';
+  if (!word) { err.textContent = 'Enter a word.'; return; }
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  try {
+    const data = await api('POST', `/flux/${state.gameId}/play`, { player_token: state.playerToken, word });
+    handleGameState(data);
+  } catch(e) {
+    err.textContent = e.message;
+    btn.disabled = false;
+  }
+}
+
+async function doPass() {
+  const btn = document.getElementById('pass-btn');
+  btn.disabled = true;
+  try {
+    const data = await api('POST', `/flux/${state.gameId}/pass`, { player_token: state.playerToken });
+    handleGameState(data);
+  } catch(e) {
+    document.getElementById('play-error').textContent = e.message;
+    btn.disabled = false;
+  }
+}
+
+// =====================================================================
+// GAME RENDERING
+// =====================================================================
+function renderGame(game) {
+  state.game = game;
+
+  // Check for new round — reset input
+  if (game.round_num !== state.lastRoundNum) {
+    state.lastRoundNum = game.round_num;
+    state.lastRoundSubmitted = false;
+    resetInput();
+    renderTiles(game, true); // with animation
+  } else {
+    renderTiles(game, false);
+  }
+
+  document.getElementById('round-num').textContent = game.round_num;
+  document.getElementById('meta-round-num').textContent = game.meta_round;
+
+  renderSubmittedState(game);
+  renderRoundSummary(game);
+  renderScoreboard(game);
+  renderChat(game.chat, 'game-chat-messages');
+  renderHistory(game.round_history);
+  renderMetaBanner(game);
+
+  if (game.status === 'finished') {
+    renderGameOver(game);
+  }
+}
+
+function renderTiles(game, animate) {
+  const container = document.getElementById('rack-tiles');
+  container.innerHTML = '';
+  game.current_letters.forEach((letter, i) => {
+    const val = game.tile_values[letter] ?? 0;
+    const tier = val <= 2 ? 'cheap' : val <= 5 ? 'mid' : val <= 8 ? 'premium' : 'hot';
+    const label = letter === '*' ? `★${val}` : letter;
+    const div = document.createElement('div');
+    div.className = `tile tile-${tier}${animate ? ' spinning' : ''}`;
+    div.dataset.letter = letter;
+    if (animate) div.style.animationDelay = `${i * 55}ms`;
+    div.innerHTML = `<div class="tile-letter">${label}</div><div class="tile-value">${val}pts</div>`;
+    container.appendChild(div);
+  });
+}
+
+function renderSubmittedState(game) {
+  const myPlayer = game.players.find(p => p.username === state.myUsername);
+  const alreadySubmitted = game.submitted_players.includes(state.myUsername);
+  const bannerActive = !!game.meta_round_banner;
+
+  const playArea = document.getElementById('play-area');
+  const submittedArea = document.getElementById('submitted-area');
+
+  if (alreadySubmitted || bannerActive) {
+    playArea.style.display = 'none';
+    submittedArea.style.display = 'block';
+    // Show who's submitted
+    const pills = document.getElementById('waiting-pills');
+    pills.innerHTML = game.players.map(p => {
+      const done = game.submitted_players.includes(p.username);
+      return `<div class="waiting-pill${done ? ' done' : ''}">${esc(p.username)}</div>`;
+    }).join('');
+  } else {
+    playArea.style.display = 'block';
+    submittedArea.style.display = 'none';
+    document.getElementById('submit-btn').disabled = false;
+    document.getElementById('pass-btn').disabled = false;
+  }
+}
+
+function resetInput() {
+  document.getElementById('word-input').value = '';
+  document.getElementById('score-preview').innerHTML = '';
+  document.getElementById('play-error').textContent = '';
+  document.getElementById('submit-btn').disabled = false;
+  document.getElementById('pass-btn').disabled = false;
+}
+
+function renderRoundSummary(game) {
+  const wrap = document.getElementById('round-summary-wrap');
+  const s = game.last_round_summary;
+  if (!s) { wrap.style.display = 'none'; return; }
+
+  // Only show summary for the round just resolved (if same round_num - 1 or after resolution)
+  wrap.style.display = 'block';
+  const tone = s.tone || 'green';
+  const resultsHtml = (s.results || []).map(r =>
+    `<div class="summary-row">
+      <span class="summary-word">${esc(r.word || 'PASS')}</span>
+      <span class="summary-player">${esc(r.username)}</span>
+      <span class="summary-pts">+${r.points}</span>
+    </div>`
+  ).join('');
+
+  wrap.innerHTML = `<div class="round-summary ${tone}">
+    <div class="summary-headline">${esc(s.headline)}</div>
+    <div class="summary-results">${resultsHtml}</div>
+  </div>`;
+}
+
+function renderScoreboard(game) {
+  const container = document.getElementById('score-rows');
+  container.innerHTML = game.players.map(p => {
+    const pct = Math.min(100, Math.round((p.score / game.score_target) * 100));
+    const isMe = p.username === state.myUsername;
+    const lastWords = p.history.slice(-5).map(h =>
+      `<div class="word-chip">${esc(h.word || 'pass')}</div>`
+    ).join('');
+    const metaStr = p.meta_wins > 0
+      ? `${'⭐'.repeat(p.meta_wins)}`
+      : '';
+    return `<div class="score-row">
+      <div class="score-row-top">
+        <span class="score-name${isMe ? ' you' : ''}">${esc(p.username)}</span>
+        ${metaStr ? `<span style="font-size:12px;">${metaStr}</span>` : ''}
+        <span class="score-pts">${p.score}</span>
+        <span class="score-meta">/ ${game.score_target}</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="word-chips">${lastWords}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderChat(chatArr, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const wasBottom = container.scrollHeight - container.clientHeight - container.scrollTop < 40;
+  container.innerHTML = (chatArr || []).map(m =>
+    `<div class="chat-msg"><span class="chat-user">${esc(m.username)}</span>: ${esc(m.text)}</div>`
+  ).join('');
+  if (wasBottom) container.scrollTop = container.scrollHeight;
+}
+
+function renderHistory(rounds) {
+  const container = document.getElementById('rail-history');
+  if (!container) return;
+  const wasBottom = container.scrollHeight - container.clientHeight - container.scrollTop < 40;
+  container.innerHTML = [...(rounds || [])].reverse().map(r => {
+    const tilesHtml = r.letters.map(l => {
+      const v = r.tile_values[l] ?? 0;
+      const tier = v <= 2 ? 'cheap' : v <= 5 ? 'mid' : v <= 8 ? 'premium' : 'hot';
+      const label = l === '*' ? `★${v}` : `${l}${v}`;
+      return `<span class="history-tile tile-${tier}">${label}</span>`;
+    }).join('');
+    const resultsHtml = (r.results || []).map(res =>
+      `<div class="history-result">${esc(res.username)}: <strong>${esc(res.word || 'pass')}</strong> (+${res.points})</div>`
+    ).join('');
+    return `<div class="history-round">
+      <div class="history-round-label">MR${r.meta_round} R${r.round}</div>
+      <div class="history-tiles">${tilesHtml}</div>
+      ${resultsHtml}
+    </div>`;
+  }).join('');
+  if (wasBottom) container.scrollTop = 0;
+}
+
+// =====================================================================
+// META-ROUND BANNER
+// =====================================================================
+function renderMetaBanner(game) {
+  // Remove any existing overlay
+  const existing = document.getElementById('meta-overlay');
+  if (existing) existing.remove();
+
+  if (!game.meta_round_banner) return;
+  const b = game.meta_round_banner;
+
+  const scoresHtml = (b.scores || []).map(s => {
+    const isWinner = s.username === b.winner;
+    return `<div class="overlay-score-row">
+      <div class="overlay-meta-wins">${'⭐'.repeat(s.meta_wins) || '·'}</div>
+      <div class="overlay-player-name">${isWinner ? '<span class="crown">👑</span> ' : ''}${esc(s.username)}</div>
+      <div class="overlay-player-score">${s.score} pts this meta</div>
+    </div>`;
+  }).join('');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.id = 'meta-overlay';
+  overlay.innerHTML = `
+    <div class="overlay-card card">
+      <div class="overlay-title">${esc(b.headline)}</div>
+      <div class="overlay-sub">${esc(b.detail)}</div>
+      <div class="overlay-scores">${scoresHtml}</div>
+      <button class="btn btn-primary btn-full" id="continue-btn">${esc(b.continue_label)}</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('continue-btn').onclick = async () => {
+    document.getElementById('continue-btn').disabled = true;
+    try {
+      const data = await api('POST', `/flux/${state.gameId}/continue`, { player_token: state.playerToken });
+      handleGameState(data);
+    } catch(e) {
+      document.getElementById('continue-btn').disabled = false;
+    }
+  };
+}
+
+// =====================================================================
+// GAME OVER
+// =====================================================================
+function renderGameOver(game) {
+  stopPolling();
+  showScreen('gameover-screen');
+
+  const sorted = [...game.players].sort((a, b) => b.meta_wins - a.meta_wins || a.join_index - b.join_index);
+  document.getElementById('gameover-title').textContent = `${game.winner} wins the match!`;
+  document.getElementById('gameover-sub').textContent = `Final results after ${game.num_meta_rounds} meta-round${game.num_meta_rounds > 1 ? 's' : ''}.`;
+
+  const medals = ['🥇', '🥈', '🥉'];
+  document.getElementById('final-scores').innerHTML = sorted.map((p, i) =>
+    `<div class="final-row">
+      <div class="final-rank">${medals[i] || (i + 1)}</div>
+      <div class="final-name">${esc(p.username)}${p.username === state.myUsername ? ' <span style="color:var(--accent);font-size:12px;">(you)</span>' : ''}</div>
+      <div class="final-wins">${p.meta_wins} win${p.meta_wins !== 1 ? 's' : ''}</div>
+    </div>`
+  ).join('');
+
+  document.getElementById('rematch-btn').onclick = async () => {
+    const btn = document.getElementById('rematch-btn');
+    btn.disabled = true;
+    try {
+      const data = await api('POST', `/flux/${state.gameId}/rematch`, { player_token: state.playerToken });
+      handleGameState(data);
+      startPolling();
+    } catch(e) {
+      btn.disabled = false;
+    }
+  };
+}
+
+// =====================================================================
+// POLLING
+// =====================================================================
+function startPolling() {
+  stopPolling();
+  poll();
+  state.pollTimer = setInterval(poll, 1500);
+}
+
+function stopPolling() {
+  if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+}
+
+async function poll() {
+  if (!state.gameId) return;
+  try {
+    const data = await api('GET', `/flux/${state.gameId}`);
+    handleGameState(data);
+  } catch(e) {
+    // Silent: game might have been reset or server restarted
+  }
+}
+
+// =====================================================================
+// CENTRAL STATE HANDLER
+// =====================================================================
+function handleGameState(game) {
+  state.game = game;
+  if (game.status === 'waiting') {
+    if (document.getElementById('lobby-screen').classList.contains('active')) {
+      renderLobby(game);
+    } else {
+      enterLobby();
+      renderLobby(game);
+    }
+  } else if (game.status === 'playing') {
+    if (!document.getElementById('game-screen').classList.contains('active')) {
+      enterGame(game);
+    } else {
+      renderGame(game);
+    }
+  } else if (game.status === 'finished') {
+    if (!document.getElementById('gameover-screen').classList.contains('active')) {
+      renderGameOver(game);
+    }
+  }
+}
+
+// =====================================================================
+// UTIL
+// =====================================================================
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// =====================================================================
+// BOOT
+// =====================================================================
+function boot() {
+  initSetupScreen();
+
+  // Try resuming from localStorage
+  const savedGameId    = localStorage.getItem('flux_gameId');
+  const savedToken     = localStorage.getItem('flux_playerToken');
+  const savedUsername  = localStorage.getItem('flux_username');
+
+  if (savedGameId && savedToken) {
+    state.gameId = savedGameId;
+    state.playerToken = savedToken;
+    state.myUsername = savedUsername;
+    // Poll immediately; if game is gone or expired, show setup
+    api('GET', `/flux/${savedGameId}`)
+      .then(data => {
+        // Determine if creator
+        state.isCreator = data.players?.[0]?.username === savedUsername;
+        handleGameState(data);
+        startPolling();
+      })
+      .catch(() => {
+        clearSession();
+        showScreen('setup-screen');
+      });
+  } else {
+    showScreen('setup-screen');
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
