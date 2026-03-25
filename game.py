@@ -215,40 +215,70 @@ def score_word(word: str, tile_values: dict[str, int], joker_letter: Optional[st
 # Word validation
 # ---------------------------------------------------------------------------
 
-def validate_word(word: str, rack: list[str], tile_values: dict[str, int]) -> tuple[bool, Optional[str], Optional[str]]:
+def analyze_word(word: str, rack: list[str], tile_values: dict[str, int]) -> dict:
     """
-    Returns (is_valid, joker_letter_or_none, error_message_or_none).
-    word should be uppercase already.
-    Rack letters may be used more than once (set semantics, not multiset).
+    Returns a structured validation result for a candidate word.
+    Rack letters use set semantics, not one-use tile semantics.
     """
     word = word.upper()
 
     if len(word) < 2 or len(word) > 20:
-        return False, None, "Word must be 2–20 letters long."
+        return {
+            "ok": False,
+            "code": "invalid_format",
+            "message": "Word must be 2–20 letters long.",
+            "joker_letter": None,
+        }
 
     if not word.isalpha():
-        return False, None, "Word must contain only letters."
+        return {
+            "ok": False,
+            "code": "invalid_format",
+            "message": "Word must contain only letters.",
+            "joker_letter": None,
+        }
 
     if not in_dictionary(word):
-        return False, None, "Word not in dictionary."
+        return {
+            "ok": False,
+            "code": "not_in_dictionary",
+            "message": "Not a word.",
+            "joker_letter": None,
+        }
 
     rack_set = set(rack)
     non_joker_set = rack_set - {"*"}
     has_joker = "*" in rack_set
 
-    # Find which letters in the word are missing from the non-joker rack
-    missing_families = set(ch for ch in word if ch not in non_joker_set)
+    # Find which letter families are missing from the non-joker rack
+    missing_families = {ch for ch in word if ch not in non_joker_set}
 
     if len(missing_families) == 0:
-        # Word can be spelled without the joker — joker not consumed
-        return True, None, None
-
-    if len(missing_families) == 1 and has_joker:
+        joker_letter = None
+    elif len(missing_families) == 1 and has_joker:
         joker_letter = next(iter(missing_families))
-        return True, joker_letter, None
+    else:
+        return {
+            "ok": False,
+            "code": "missing_letters",
+            "message": "You don't have the letters.",
+            "joker_letter": None,
+        }
 
-    # More than one missing family, or needs joker but none available
-    return False, None, "Word cannot be formed from the current rack."
+    return {
+        "ok": True,
+        "code": "valid",
+        "message": "Good word.",
+        "joker_letter": joker_letter,
+    }
+
+
+def validate_word(word: str, rack: list[str], tile_values: dict[str, int]) -> tuple[bool, Optional[str], Optional[str]]:
+    """
+    Returns (is_valid, joker_letter_or_none, error_message_or_none).
+    """
+    analysis = analyze_word(word, rack, tile_values)
+    return analysis["ok"], analysis["joker_letter"], None if analysis["ok"] else analysis["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +298,7 @@ class PlayerState:
     def to_dict(self, include_submission=False) -> dict:
         d = {
             "username": self.username,
+            "join_index": self.join_index,
             "score": self.score,
             "meta_wins": self.meta_wins,
             "history": self.history,
@@ -465,14 +496,20 @@ class FluxGame:
             return False, {"error": "Invalid token."}
 
         word_upper = word.upper()
-        ok, joker_letter, _ = validate_word(word_upper, self.current_letters, self.tile_values)
-        if not ok or not in_dictionary(word_upper):
-            return True, {"word": word_upper, "in_dictionary": False, "points": 0}
+        analysis = analyze_word(word_upper, self.current_letters, self.tile_values)
+        if not analysis["ok"]:
+            return True, {
+                "word": word_upper,
+                "status": analysis["code"],
+                "message": analysis["message"],
+                "points": 0,
+            }
 
-        scored = score_word(word_upper, self.tile_values, joker_letter)
+        scored = score_word(word_upper, self.tile_values, analysis["joker_letter"])
         return True, {
             "word": word_upper,
-            "in_dictionary": True,
+            "status": "valid",
+            "message": "Good word.",
             "points": scored["points"],
         }
 

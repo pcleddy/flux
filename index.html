@@ -574,6 +574,7 @@
 
 <!-- Meta-round banner overlay (injected dynamically) -->
 
+<script src="./frontend_logic.js"></script>
 <script>
 // =====================================================================
 // CONFIG
@@ -658,6 +659,7 @@ function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const el = document.getElementById(id);
   if (el) el.classList.add('active');
+  if (id !== 'game-screen') clearPlaySurface();
 }
 
 // =====================================================================
@@ -825,7 +827,7 @@ function initLobbyUI() {
     try { await api('POST', `/flux/${state.gameId}/chat`, { player_token: state.playerToken, message: msg }); } catch(e){}
   };
   send.onclick = doChat;
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') doChat(); });
+  input.onkeydown = e => { if (e.key === 'Enter') doChat(); };
 }
 
 function renderLobby(game) {
@@ -899,13 +901,13 @@ function initGameInput() {
     }
   };
 
-  input.addEventListener('keydown', e => {
+  input.onkeydown = e => {
     if (e.key === 'Enter') submitBtn.click();
-  });
+  };
 
-  input.addEventListener('input', () => {
+  input.oninput = () => {
     onWordInput();
-  });
+  };
 }
 
 function initGameChat() {
@@ -995,15 +997,48 @@ function renderSubmittedState(game) {
   }
 }
 
+function clearPlaySurface() {
+  const overlay = document.getElementById('meta-overlay');
+  if (overlay) overlay.remove();
+
+  const rack = document.getElementById('rack-tiles');
+  if (rack) rack.innerHTML = '';
+
+  const scoreRows = document.getElementById('score-rows');
+  if (scoreRows) scoreRows.innerHTML = '';
+
+  const history = document.getElementById('rail-history');
+  if (history) history.innerHTML = '';
+
+  const gameChat = document.getElementById('game-chat-messages');
+  if (gameChat) gameChat.innerHTML = '';
+
+  const waitingPills = document.getElementById('waiting-pills');
+  if (waitingPills) waitingPills.innerHTML = '';
+
+  const roundSummary = document.getElementById('round-summary-wrap');
+  if (roundSummary) {
+    roundSummary.style.display = 'none';
+    roundSummary.innerHTML = '';
+  }
+
+  const submittedArea = document.getElementById('submitted-area');
+  if (submittedArea) submittedArea.style.display = 'none';
+
+  resetInput();
+}
+
 function resetInput() {
   const input = document.getElementById('word-input');
   const errorEl = document.getElementById('word-error');
   const preview = document.getElementById('score-preview');
   const inputArea = document.getElementById('input-area');
+  clearTimeout(state.previewTimer);
   if (input) input.value = '';
   if (errorEl) errorEl.textContent = '';
   if (preview) preview.innerHTML = '';
   if (inputArea) inputArea.style.display = 'block';
+  clearUsedTiles();
 }
 
 function onWordInput() {
@@ -1012,66 +1047,49 @@ function onWordInput() {
   if (!input || !preview || !state.game) return;
 
   const word = input.value.trim().toUpperCase();
-  if (!word) { preview.innerHTML = ''; return; }
+  clearTimeout(state.previewTimer);
+  clearUsedTiles();
 
-  const letters = [...(state.game.current_letters || [])];
-  const tileValues = state.game.tile_values || {};
-  let available = [...letters];
-  let score = 0;
-  let valid = true;
-
-  for (const ch of word) {
-    const idx = available.indexOf(ch);
-    if (idx === -1) {
-      // Try wildcard
-      const wildIdx = available.indexOf('*');
-      if (wildIdx !== -1) {
-        score += tileValues['*'] || 0;
-        available.splice(wildIdx, 1);
-      } else {
-        valid = false;
-        break;
-      }
-    } else {
-      score += tileValues[ch] || 0;
-      available.splice(idx, 1);
-    }
+  if (!word) {
+    preview.innerHTML = '';
+    return;
   }
 
-  // Highlight used tiles
+  state.previewTimer = setTimeout(async () => {
+    try {
+      const result = await api('POST', `/flux/${state.gameId}/check_word`, {
+        player_token: state.playerToken,
+        word,
+      });
+      if (input.value.trim().toUpperCase() !== word) return;
+
+      if (result.status === 'valid') {
+        highlightWordTiles(word, state.game.current_letters || []);
+        preview.innerHTML = FluxFrontendLogic.buildPreviewHtml(result, esc);
+      } else {
+        preview.innerHTML = FluxFrontendLogic.buildPreviewHtml(result, esc);
+      }
+    } catch(e) {
+      if (input.value.trim().toUpperCase() === word) {
+        preview.innerHTML = '';
+      }
+    }
+  }, 180);
+}
+
+function clearUsedTiles() {
   document.querySelectorAll('#rack-tiles .tile').forEach(t => t.classList.remove('used'));
-  if (valid) {
-    let tempAvail = [...letters];
-    for (const ch of word) {
-      const idx = tempAvail.indexOf(ch);
-      if (idx !== -1) {
-        tempAvail[idx] = null;
-        // Find corresponding tile element
-        const tiles = document.querySelectorAll('#rack-tiles .tile');
-        for (const t of tiles) {
-          if (t.dataset.letter === ch && !t.classList.contains('used')) {
-            t.classList.add('used');
-            break;
-          }
-        }
-      } else {
-        const wildIdx = tempAvail.indexOf('*');
-        if (wildIdx !== -1) {
-          tempAvail[wildIdx] = null;
-          const tiles = document.querySelectorAll('#rack-tiles .tile');
-          for (const t of tiles) {
-            if (t.dataset.letter === '*' && !t.classList.contains('used')) {
-              t.classList.add('used');
-              break;
-            }
-          }
-        }
-      }
+}
+
+function highlightWordTiles(word, rack) {
+  clearUsedTiles();
+  const lettersToMark = new Set(FluxFrontendLogic.getLettersToHighlight(word, rack));
+
+  document.querySelectorAll('#rack-tiles .tile').forEach(tile => {
+    if (lettersToMark.has(tile.dataset.letter)) {
+      tile.classList.add('used');
     }
-    preview.innerHTML = `<span class="pts">${score} pts</span> (${word.length} letters)`;
-  } else {
-    preview.innerHTML = `<span class="invalid">Can't spell with these tiles</span>`;
-  }
+  });
 }
 
 function renderRoundSummary(game) {
@@ -1221,7 +1239,6 @@ function renderMetaBanner(game) {
 // GAME OVER
 // =====================================================================
 function renderGameOver(game) {
-  stopPolling();
   showScreen('gameover-screen');
 
   const sorted = [...game.players].sort((a, b) => b.meta_wins - a.meta_wins || a.join_index - b.join_index);
@@ -1243,7 +1260,6 @@ function renderGameOver(game) {
     try {
       const data = await api('POST', `/flux/${state.gameId}/rematch`, { player_token: state.playerToken });
       handleGameState(data);
-      startPolling();
     } catch(e) {
       btn.disabled = false;
     }
