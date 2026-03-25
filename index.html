@@ -501,6 +501,17 @@
         <div class="rack-tiles" id="rack-tiles"></div>
       </div>
 
+      <!-- Word input -->
+      <div class="input-wrap card" id="input-area">
+        <div class="word-row">
+          <input type="text" id="word-input" placeholder="Type a word…" autocomplete="off" maxlength="20">
+          <button class="btn btn-primary" id="submit-btn">Submit</button>
+          <button class="btn btn-secondary" id="pass-btn">Pass</button>
+        </div>
+        <div class="score-preview" id="score-preview"></div>
+        <div class="error-msg" id="word-error"></div>
+      </div>
+
       <!-- Submitted state -->
       <div id="submitted-area" style="display:none;">
         <div class="submitted-banner">✅ Submitted — waiting for others…</div>
@@ -853,11 +864,52 @@ function enterGame(game) {
 }
 
 function initGameInput() {
-  // Word input removed from game screen
+  const input = document.getElementById('word-input');
+  const submitBtn = document.getElementById('submit-btn');
+  const passBtn = document.getElementById('pass-btn');
+  const errorEl = document.getElementById('word-error');
+
+  submitBtn.onclick = async () => {
+    const word = input.value.trim().toUpperCase();
+    errorEl.textContent = '';
+    if (!word) { errorEl.textContent = 'Type a word first.'; return; }
+    submitBtn.disabled = true;
+    try {
+      const data = await api('POST', `/flux/${state.gameId}/play`, { player_token: state.playerToken, word });
+      state.lastRoundSubmitted = true;
+      handleGameState(data);
+    } catch(e) {
+      errorEl.textContent = e.message;
+    } finally {
+      submitBtn.disabled = false;
+    }
+  };
+
+  passBtn.onclick = async () => {
+    errorEl.textContent = '';
+    passBtn.disabled = true;
+    try {
+      const data = await api('POST', `/flux/${state.gameId}/pass`, { player_token: state.playerToken });
+      state.lastRoundSubmitted = true;
+      handleGameState(data);
+    } catch(e) {
+      errorEl.textContent = e.message;
+    } finally {
+      passBtn.disabled = false;
+    }
+  };
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitBtn.click();
+  });
+
+  input.addEventListener('input', () => {
+    onWordInput();
+  });
 }
 
 function initGameChat() {
-  // Chat input removed from game screen
+  // Game chat is in the rail — no separate input in this version
 }
 
 // Word input removed — doSubmit/doPass/onWordInput no longer wired to UI elements
@@ -927,9 +979,11 @@ function renderSubmittedState(game) {
   const alreadySubmitted = game.submitted_players.includes(state.myUsername);
   const bannerActive = !!game.meta_round_banner;
   const submittedArea = document.getElementById('submitted-area');
+  const inputArea = document.getElementById('input-area');
 
   if (alreadySubmitted || bannerActive) {
     submittedArea.style.display = 'block';
+    if (inputArea) inputArea.style.display = 'none';
     const pills = document.getElementById('waiting-pills');
     pills.innerHTML = game.players.map(p => {
       const done = game.submitted_players.includes(p.username);
@@ -937,11 +991,87 @@ function renderSubmittedState(game) {
     }).join('');
   } else {
     submittedArea.style.display = 'none';
+    if (inputArea) inputArea.style.display = 'block';
   }
 }
 
 function resetInput() {
-  // Input elements removed from game screen
+  const input = document.getElementById('word-input');
+  const errorEl = document.getElementById('word-error');
+  const preview = document.getElementById('score-preview');
+  const inputArea = document.getElementById('input-area');
+  if (input) input.value = '';
+  if (errorEl) errorEl.textContent = '';
+  if (preview) preview.innerHTML = '';
+  if (inputArea) inputArea.style.display = 'block';
+}
+
+function onWordInput() {
+  const input = document.getElementById('word-input');
+  const preview = document.getElementById('score-preview');
+  if (!input || !preview || !state.game) return;
+
+  const word = input.value.trim().toUpperCase();
+  if (!word) { preview.innerHTML = ''; return; }
+
+  const letters = [...(state.game.current_letters || [])];
+  const tileValues = state.game.tile_values || {};
+  let available = [...letters];
+  let score = 0;
+  let valid = true;
+
+  for (const ch of word) {
+    const idx = available.indexOf(ch);
+    if (idx === -1) {
+      // Try wildcard
+      const wildIdx = available.indexOf('*');
+      if (wildIdx !== -1) {
+        score += tileValues['*'] || 0;
+        available.splice(wildIdx, 1);
+      } else {
+        valid = false;
+        break;
+      }
+    } else {
+      score += tileValues[ch] || 0;
+      available.splice(idx, 1);
+    }
+  }
+
+  // Highlight used tiles
+  document.querySelectorAll('#rack-tiles .tile').forEach(t => t.classList.remove('used'));
+  if (valid) {
+    let tempAvail = [...letters];
+    for (const ch of word) {
+      const idx = tempAvail.indexOf(ch);
+      if (idx !== -1) {
+        tempAvail[idx] = null;
+        // Find corresponding tile element
+        const tiles = document.querySelectorAll('#rack-tiles .tile');
+        for (const t of tiles) {
+          if (t.dataset.letter === ch && !t.classList.contains('used')) {
+            t.classList.add('used');
+            break;
+          }
+        }
+      } else {
+        const wildIdx = tempAvail.indexOf('*');
+        if (wildIdx !== -1) {
+          tempAvail[wildIdx] = null;
+          const tiles = document.querySelectorAll('#rack-tiles .tile');
+          for (const t of tiles) {
+            if (t.dataset.letter === '*' && !t.classList.contains('used')) {
+              t.classList.add('used');
+              break;
+            }
+          }
+        }
+      }
+    }
+    preview.innerHTML = `<span class="pts">${score} pts</span> (${word.length} letters)`;
+  } else {
+    preview.innerHTML = `<span class="invalid">Can't spell with these tiles</span>`;
+  }
 }
 
 function renderRoundSummary(game) {
