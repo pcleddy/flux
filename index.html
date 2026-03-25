@@ -508,6 +508,10 @@
         <div class="score-rows" id="score-rows"></div>
       </div>
 
+      <div style="text-align:center;padding-bottom:8px;">
+        <span class="forget-link" id="game-forget">Clear game &amp; start over</span>
+      </div>
+
     </div>
 
     <!-- Right rail -->
@@ -794,13 +798,7 @@ function initLobbyUI() {
     }
   };
 
-  document.getElementById('lobby-forget').onclick = () => {
-    if (confirm('Forget this game and return to setup?')) {
-      clearSession();
-      stopPolling();
-      showScreen('setup-screen');
-    }
-  };
+  document.getElementById('lobby-forget').onclick = forgetAndReset;
 
   // Chat
   const input = document.getElementById('lobby-chat-input');
@@ -845,13 +843,8 @@ function enterGame(game) {
   state.lastRoundNum = game.round_num;
   initGameInput();
   initGameChat();
-  document.getElementById('gameover-forget').onclick = () => {
-    if (confirm('Forget this game and return to setup?')) {
-      clearSession();
-      stopPolling();
-      showScreen('setup-screen');
-    }
-  };
+  document.getElementById('gameover-forget').onclick = forgetAndReset;
+  document.getElementById('game-forget').onclick = forgetAndReset;
   renderGame(game);
 }
 
@@ -1230,6 +1223,17 @@ function handleGameState(game) {
 // =====================================================================
 // UTIL
 // =====================================================================
+function forgetAndReset() {
+  if (confirm('Clear this game and return to setup?')) {
+    clearSession();
+    stopPolling();
+    // Remove any lingering overlay
+    const overlay = document.getElementById('meta-overlay');
+    if (overlay) overlay.remove();
+    showScreen('setup-screen');
+  }
+}
+
 function esc(str) {
   if (!str) return '';
   return String(str)
