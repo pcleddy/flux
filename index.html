@@ -186,7 +186,8 @@
   .player-you { font-size: 11px; color: var(--accent); font-weight: 600; margin-left: auto; }
 
   /* ---- Game Screen ---- */
-  #game-screen { display: flex; flex-direction: row; flex: 1; overflow: hidden; }
+  #game-screen { overflow: hidden; }
+  #game-screen.active { flex-direction: row; }
   .game-main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; padding: 20px; gap: 16px; min-width: 0; }
   .game-rail {
     width: 280px; flex-shrink: 0; display: flex; flex-direction: column;
@@ -327,6 +328,26 @@
   .overlay-player-name { font-size: 15px; font-weight: 600; flex: 1; }
   .overlay-player-score { font-size: 13px; color: var(--muted); }
   .crown { color: var(--yellow); }
+
+  /* Last-turn summary inside meta overlay */
+  .overlay-last-turn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    margin-bottom: 20px;
+  }
+  .overlay-last-turn-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .overlay-last-turn-row {
+    display: flex; gap: 8px; align-items: baseline;
+    font-size: 13px; padding: 3px 0;
+  }
+  .overlay-last-word { font-weight: 800; font-family: monospace; font-size: 15px; color: var(--text); }
+  .overlay-last-player { color: var(--muted); flex: 1; }
+  .overlay-last-pts { color: var(--green); font-weight: 700; }
 
   /* Game over */
   #gameover-screen { align-items: center; justify-content: center; padding: 20px; }
@@ -480,23 +501,10 @@
         <div class="rack-tiles" id="rack-tiles"></div>
       </div>
 
-      <!-- Word input (or submitted state) -->
-      <div class="card" id="input-card">
-        <div id="play-area">
-          <div class="word-row">
-            <input type="text" id="word-input" placeholder="Type a word…" maxlength="20" autocomplete="off" autocorrect="off" spellcheck="false">
-          </div>
-          <div class="score-preview" id="score-preview"></div>
-          <div class="word-actions">
-            <button class="btn btn-primary" id="submit-btn">Submit</button>
-            <button class="btn btn-secondary" id="pass-btn">Pass</button>
-          </div>
-          <div class="error-msg" id="play-error"></div>
-        </div>
-        <div id="submitted-area" style="display:none;">
-          <div class="submitted-banner">✅ Submitted — waiting for others…</div>
-          <div class="waiting-pills" id="waiting-pills"></div>
-        </div>
+      <!-- Submitted state -->
+      <div id="submitted-area" style="display:none;">
+        <div class="submitted-banner">✅ Submitted — waiting for others…</div>
+        <div class="waiting-pills" id="waiting-pills"></div>
       </div>
 
       <!-- Round summary -->
@@ -520,10 +528,6 @@
       <div class="rail-chat">
         <div class="rail-section-label">Chat</div>
         <div class="chat-messages" id="game-chat-messages"></div>
-        <div class="chat-form">
-          <input type="text" id="game-chat-input" class="chat-input" placeholder="Message…" maxlength="200">
-          <button class="btn btn-secondary chat-send" id="game-chat-send">Send</button>
-        </div>
       </div>
       <!-- History -->
       <div style="display:flex;flex-direction:column;flex:1;min-height:0;">
@@ -849,91 +853,27 @@ function enterGame(game) {
 }
 
 function initGameInput() {
-  const input = document.getElementById('word-input');
-  input.addEventListener('input', onWordInput);
-  document.getElementById('submit-btn').onclick = doSubmit;
-  document.getElementById('pass-btn').onclick = doPass;
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') doSubmit(); });
+  // Word input removed from game screen
 }
 
 function initGameChat() {
-  const input = document.getElementById('game-chat-input');
-  const send  = document.getElementById('game-chat-send');
-  const doChat = async () => {
-    const msg = input.value.trim();
-    if (!msg) return;
-    input.value = '';
-    try { await api('POST', `/flux/${state.gameId}/chat`, { player_token: state.playerToken, message: msg }); } catch(e){}
-  };
-  send.onclick = doChat;
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') doChat(); });
+  // Chat input removed from game screen
 }
 
-let previewAbort = null;
-function onWordInput() {
-  const word = document.getElementById('word-input').value.toUpperCase();
-  if (!word) {
-    document.getElementById('score-preview').innerHTML = '';
-    highlightUsedTiles([]);
-    return;
-  }
-  highlightUsedTiles(word.split(''));
-  // Debounce check_word
-  if (previewAbort) clearTimeout(previewAbort);
-  previewAbort = setTimeout(async () => {
-    if (!word || word.length < 2) {
-      document.getElementById('score-preview').innerHTML = '';
-      return;
-    }
-    try {
-      const res = await api('POST', `/flux/${state.gameId}/check_word`, { player_token: state.playerToken, word });
-      if (res.in_dictionary) {
-        document.getElementById('score-preview').innerHTML = `<span class="pts">+${res.points}</span> pts`;
-      } else {
-        document.getElementById('score-preview').innerHTML = `<span class="invalid">Not valid</span>`;
-      }
-    } catch(e) {
-      document.getElementById('score-preview').innerHTML = '';
-    }
-  }, 300);
-}
-
-function highlightUsedTiles(letters) {
-  const game = state.game;
-  if (!game) return;
-  // For each tile, mark used if that letter is present in the typed letters
-  const letterSet = new Set(letters);
-  document.querySelectorAll('.tile[data-letter]').forEach(tile => {
-    tile.classList.toggle('used', letterSet.has(tile.dataset.letter));
-  });
-}
-
-async function doSubmit() {
-  const word = document.getElementById('word-input').value.trim();
-  const err = document.getElementById('play-error');
-  err.textContent = '';
-  if (!word) { err.textContent = 'Enter a word.'; return; }
-  const btn = document.getElementById('submit-btn');
-  btn.disabled = true;
+// Word input removed — doSubmit/doPass/onWordInput no longer wired to UI elements
+async function doSubmit(word) {
+  if (!word) return;
   try {
     const data = await api('POST', `/flux/${state.gameId}/play`, { player_token: state.playerToken, word });
     handleGameState(data);
-  } catch(e) {
-    err.textContent = e.message;
-    btn.disabled = false;
-  }
+  } catch(e) { /* caller handles */ }
 }
 
 async function doPass() {
-  const btn = document.getElementById('pass-btn');
-  btn.disabled = true;
   try {
     const data = await api('POST', `/flux/${state.gameId}/pass`, { player_token: state.playerToken });
     handleGameState(data);
-  } catch(e) {
-    document.getElementById('play-error').textContent = e.message;
-    btn.disabled = false;
-  }
+  } catch(e) { /* caller handles */ }
 }
 
 // =====================================================================
@@ -984,36 +924,24 @@ function renderTiles(game, animate) {
 }
 
 function renderSubmittedState(game) {
-  const myPlayer = game.players.find(p => p.username === state.myUsername);
   const alreadySubmitted = game.submitted_players.includes(state.myUsername);
   const bannerActive = !!game.meta_round_banner;
-
-  const playArea = document.getElementById('play-area');
   const submittedArea = document.getElementById('submitted-area');
 
   if (alreadySubmitted || bannerActive) {
-    playArea.style.display = 'none';
     submittedArea.style.display = 'block';
-    // Show who's submitted
     const pills = document.getElementById('waiting-pills');
     pills.innerHTML = game.players.map(p => {
       const done = game.submitted_players.includes(p.username);
       return `<div class="waiting-pill${done ? ' done' : ''}">${esc(p.username)}</div>`;
     }).join('');
   } else {
-    playArea.style.display = 'block';
     submittedArea.style.display = 'none';
-    document.getElementById('submit-btn').disabled = false;
-    document.getElementById('pass-btn').disabled = false;
   }
 }
 
 function resetInput() {
-  document.getElementById('word-input').value = '';
-  document.getElementById('score-preview').innerHTML = '';
-  document.getElementById('play-error').textContent = '';
-  document.getElementById('submit-btn').disabled = false;
-  document.getElementById('pass-btn').disabled = false;
+  // Input elements removed from game screen
 }
 
 function renderRoundSummary(game) {
@@ -1106,6 +1034,25 @@ function renderMetaBanner(game) {
   if (!game.meta_round_banner) return;
   const b = game.meta_round_banner;
 
+  // Last-turn results (shown as context at top of overlay)
+  let lastTurnHtml = '';
+  const s = game.last_round_summary;
+  if (s && s.results && s.results.length) {
+    const rowsHtml = s.results.map(r =>
+      `<div class="overlay-last-turn-row">
+        <span class="overlay-last-word">${esc(r.word || 'PASS')}</span>
+        <span class="overlay-last-player">${esc(r.username)}</span>
+        <span class="overlay-last-pts">+${r.points}</span>
+      </div>`
+    ).join('');
+    lastTurnHtml = `
+      <div class="overlay-last-turn">
+        <div class="overlay-last-turn-label">Final turn</div>
+        ${rowsHtml}
+      </div>`;
+  }
+
+  // Meta-round scores
   const scoresHtml = (b.scores || []).map(s => {
     const isWinner = s.username === b.winner;
     return `<div class="overlay-score-row">
@@ -1120,6 +1067,7 @@ function renderMetaBanner(game) {
   overlay.id = 'meta-overlay';
   overlay.innerHTML = `
     <div class="overlay-card card">
+      ${lastTurnHtml}
       <div class="overlay-title">${esc(b.headline)}</div>
       <div class="overlay-sub">${esc(b.detail)}</div>
       <div class="overlay-scores">${scoresHtml}</div>
