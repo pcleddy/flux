@@ -130,6 +130,23 @@ class BotGameTests(unittest.TestCase):
         self.assertEqual(msg, "This is a bot match.")
         self.assertIsNone(username)
 
+    def test_bot_match_allows_original_player_to_rejoin(self):
+        game = FluxGame(
+            game_id="BOT12345",
+            creator_token="tok-alice",
+            username="alice",
+            num_meta_rounds=1,
+            score_target=100,
+            max_players=2,
+            vs_bot=True,
+        )
+        ok, msg = game.leave("tok-alice")
+        self.assertTrue(ok)
+        ok, token, username = game.join("alice")
+        self.assertTrue(ok)
+        self.assertEqual(token, "tok-alice")
+        self.assertEqual(username, "alice")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -476,8 +476,6 @@ class FluxGame:
         """Returns (ok, token_or_error, final_username)."""
         if self.status == "finished":
             return False, "Game is finished.", None
-        if self.vs_bot:
-            return False, "This is a bot match.", None
 
         for p in self.players:
             if p.username == username and not p.active:
@@ -485,6 +483,9 @@ class FluxGame:
                 p.current_submission = None
                 self._log(f"↩️ {p.username} rejoined.")
                 return True, p.token, p.username
+
+        if self.vs_bot:
+            return False, "This is a bot match.", None
 
         if len(self._active_players()) >= self.max_players:
             return False, "Game is full.", None
