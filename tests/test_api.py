@@ -146,6 +146,20 @@ class CheckWordApiTests(unittest.TestCase):
         self.assertEqual(game["active_players"], 2)
         self.assertTrue(game["can_join"] is False)
 
+    def test_create_game_allows_solo_mode(self):
+        resp = self.client.post(
+            "/flux",
+            json={
+                "username": "solo",
+                "num_meta_rounds": 1,
+                "score_target": 100,
+                "max_players": 1,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        game_id = resp.json()["game_id"]
+        self.assertEqual(main.games[game_id].max_players, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

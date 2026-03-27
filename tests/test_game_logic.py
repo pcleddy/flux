@@ -1,6 +1,6 @@
 import unittest
 
-from game import FluxGame, analyze_word, set_dictionary
+from game import FluxGame, analyze_word, score_word, set_dictionary
 
 
 class AnalyzeWordTests(unittest.TestCase):
@@ -30,6 +30,20 @@ class AnalyzeWordTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["code"], "valid")
         self.assertEqual(result["joker_letter"], "B")
+
+
+class ScoreWordTests(unittest.TestCase):
+    def test_joker_substitution_scores_once(self):
+        scored = score_word("BBBBARS", {"A": 3, "R": 4, "S": 1, "*": 7}, "B")
+        self.assertEqual(scored["base_points"], 36)
+        self.assertEqual(scored["joker_repeat_penalty"], 21)
+        self.assertEqual(scored["points"], 15)
+
+    def test_repeated_joker_letter_contributes_only_once_total(self):
+        scored = score_word("ZIZZ", {"I": 3, "*": 7}, "Z")
+        self.assertEqual(scored["base_points"], 24)
+        self.assertEqual(scored["joker_repeat_penalty"], 14)
+        self.assertEqual(scored["points"], 10)
 
 
 class LeaveRejoinTests(unittest.TestCase):

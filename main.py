@@ -180,8 +180,8 @@ def create_game(req: CreateGameRequest):
         raise HTTPException(400, "num_meta_rounds must be 1, 3, or 5.")
     if req.score_target not in (100, 200, 500, 1000):
         raise HTTPException(400, "score_target must be 100, 200, 500, or 1000.")
-    if not (2 <= req.max_players <= 6):
-        raise HTTPException(400, "max_players must be between 2 and 6.")
+    if not (1 <= req.max_players <= 6):
+        raise HTTPException(400, "max_players must be between 1 and 6.")
     if not req.username.strip():
         raise HTTPException(400, "Username required.")
 

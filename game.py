@@ -197,13 +197,17 @@ def score_word(word: str, tile_values: dict[str, int], joker_letter: Optional[st
     word must be uppercase.
     """
     word = word.upper()
-    base_points = sum(tile_values.get(ch, 0) for ch in word)
+    joker_value = tile_values.get("*", 0)
+    base_points = sum(
+        joker_value if joker_letter and ch == joker_letter else tile_values.get(ch, 0)
+        for ch in word
+    )
     length_bonus = max(0, len(word) - 7) * 2
 
     joker_repeat_penalty = 0
     if joker_letter:
         count = word.count(joker_letter)
-        joker_repeat_penalty = max(0, count - 1) * tile_values.get(joker_letter, 0)
+        joker_repeat_penalty = max(0, count - 1) * joker_value
 
     points = base_points - joker_repeat_penalty + length_bonus
 
