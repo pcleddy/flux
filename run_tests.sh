@@ -3,3 +3,4 @@ set -euo pipefail
 
 python3 -m unittest discover -s tests -p 'test_*.py'
 node --test tests/frontend_logic.test.js
+node --test tests/mobile_css.test.js
