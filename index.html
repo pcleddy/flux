@@ -179,6 +179,11 @@
     flex-direction: column;
     gap: 10px;
   }
+  .board-debug {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+  }
   .game-card {
     background: rgba(31, 26, 57, 0.76);
     border: 1px solid rgba(88, 78, 140, 0.55);
@@ -722,6 +727,9 @@
           </div>
         </div>
         <div id="games-list" class="games-list"></div>
+        <div class="board-debug" id="board-debug-tools" style="display:none;">
+          <button class="btn btn-secondary" id="voice-debug-btn">Test Voice</button>
+        </div>
       </div>
 
       <div class="setup-tabs" id="setup-tabs">
@@ -942,6 +950,7 @@ const API_BASE = (() => {
   }
   return 'https://masterp99-flux.hf.space';
 })();
+const DEBUG_MODE = 'dev';
 
 // =====================================================================
 // STATE
@@ -966,6 +975,7 @@ let state = {
   lastBannerKey: null,
   lastGameOverKey: null,
 };
+let cachedSpeechVoices = [];
 
 // =====================================================================
 // PERSISTENCE
@@ -1115,15 +1125,24 @@ function playClapSound() {
   playTone(720, 0.24, 0.06, 'square', 0.02);
 }
 
+function refreshSpeechVoices() {
+  if (!('speechSynthesis' in window)) return [];
+  const voices = window.speechSynthesis.getVoices() || [];
+  if (voices.length) cachedSpeechVoices = voices;
+  return cachedSpeechVoices;
+}
+
 function pickSpeechVoice() {
   if (!('speechSynthesis' in window)) return null;
-  const voices = window.speechSynthesis.getVoices() || [];
+  const voices = refreshSpeechVoices();
   if (!voices.length) return null;
 
   const preferredNames = [
     'Google UK English Male',
     'Google UK English',
     'Microsoft Ryan Online (Natural) - English (United Kingdom)',
+    'Microsoft Sonia Online (Natural) - English (United Kingdom)',
+    'Google UK English Female',
     'Microsoft Guy Online (Natural) - English (United States)',
     'Daniel',
   ];
@@ -1134,10 +1153,13 @@ function pickSpeechVoice() {
   }
 
   const englishMaleish = voices.find(v =>
-    /en-/i.test(v.lang || '') &&
-    /(male|david|daniel|guy|ryan)/i.test(`${v.name} ${v.voiceURI}`)
+    /en-(gb|uk|us|au|ie)|^en/i.test(v.lang || '') &&
+    /(male|david|daniel|guy|ryan|google uk english)/i.test(`${v.name} ${v.voiceURI}`)
   );
   if (englishMaleish) return englishMaleish;
+
+  const ukEnglishVoice = voices.find(v => /en-(gb|uk)/i.test(v.lang || ''));
+  if (ukEnglishVoice) return ukEnglishVoice;
 
   const englishVoice = voices.find(v => /en-/i.test(v.lang || ''));
   return englishVoice || voices[0] || null;
@@ -1145,6 +1167,7 @@ function pickSpeechVoice() {
 
 function speak(text) {
   if (!state.soundEnabled || !('speechSynthesis' in window) || !text) return;
+  refreshSpeechVoices();
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   const voice = pickSpeechVoice();
@@ -1163,6 +1186,25 @@ function soundAffirmation(kind) {
   };
   const options = phrases[kind] || phrases.valid;
   return options[Math.floor(Math.random() * options.length)];
+}
+
+function runVoiceDebug() {
+  if (!('speechSynthesis' in window)) {
+    alert('Speech synthesis is not available in this browser.');
+    return;
+  }
+  refreshSpeechVoices();
+  const voice = pickSpeechVoice();
+  const voiceName = voice ? `${voice.name} (${voice.lang || 'unknown'})` : 'browser default';
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(
+    `Voice test. Using ${voiceName}. Excellent. Nice word. Strong play.`
+  );
+  if (voice) utterance.voice = voice;
+  utterance.rate = 0.98;
+  utterance.pitch = 0.9;
+  utterance.volume = 0.85;
+  window.speechSynthesis.speak(utterance);
 }
 
 function updateSoundToggle() {
@@ -1189,6 +1231,7 @@ function showScreen(id) {
 // SETUP SCREEN
 // =====================================================================
 function initSetupScreen() {
+  refreshSpeechVoices();
   // Pre-fill username
   const savedUser = loadLastUsername();
   document.getElementById('create-username').value = savedUser;
@@ -1232,6 +1275,11 @@ function initSetupScreen() {
   document.getElementById('join-rejoin-code').addEventListener('keydown', e => { if (e.key === 'Enter') doRejoinWithCode(); });
   refreshRejoinButton();
   loadGameBoard();
+  const debugTools = document.getElementById('board-debug-tools');
+  if (debugTools) {
+    debugTools.style.display = DEBUG_MODE === 'live' ? 'none' : 'flex';
+  }
+  document.getElementById('voice-debug-btn')?.addEventListener('click', runVoiceDebug);
 }
 
 function openSetupPanel(tab) {
@@ -2179,6 +2227,12 @@ function initTheme() {
 // BOOT
 // =====================================================================
 function boot() {
+  refreshSpeechVoices();
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.onvoiceschanged = () => {
+      refreshSpeechVoices();
+    };
+  }
   initTheme();
   initSetupScreen();
 

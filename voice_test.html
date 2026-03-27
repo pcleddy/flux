@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voice Test</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f1e8;
+      --panel: #fffaf2;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #0f766e;
+      --border: #d6c7b3;
+    }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background: linear-gradient(180deg, #f7f2ea, #efe4d4);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 820px;
+      margin: 40px auto;
+      padding: 24px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 12px 32px rgba(76, 54, 32, 0.08);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 32px;
+    }
+    p {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    label {
+      display: block;
+      margin: 16px 0 6px;
+      font-weight: 700;
+    }
+    select, textarea, input {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font: inherit;
+      background: white;
+      color: var(--text);
+    }
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    button {
+      margin-top: 16px;
+      margin-right: 10px;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font: inherit;
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+    }
+    button.secondary {
+      background: #d97706;
+    }
+    .meta {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 14px;
+      color: var(--muted);
+      white-space: pre-wrap;
+    }
+    @media (max-width: 700px) {
+      .wrap { margin: 16px auto; padding: 14px; }
+      .row { grid-template-columns: 1fr; }
+      button { width: 100%; margin-right: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h1>Speech Voice Test</h1>
+      <p>Use this page to see which voices your current browser exposes and test them live. Chrome and Firefox often expose different voice lists.</p>
+
+      <label for="voice-select">Voice</label>
+      <select id="voice-select"></select>
+
+      <div class="row">
+        <div>
+          <label for="rate">Rate</label>
+          <input id="rate" type="number" min="0.5" max="2" step="0.01" value="0.98">
+        </div>
+        <div>
+          <label for="pitch">Pitch</label>
+          <input id="pitch" type="number" min="0" max="2" step="0.01" value="0.9">
+        </div>
+        <div>
+          <label for="volume">Volume</label>
+          <input id="volume" type="number" min="0" max="1" step="0.01" value="0.85">
+        </div>
+      </div>
+
+      <label for="text">Text</label>
+      <textarea id="text">Excellent. Meta-round win. Beautiful. On to the next round.</textarea>
+
+      <button id="speak-btn">Speak</button>
+      <button id="stop-btn" class="secondary">Stop</button>
+
+      <div class="meta" id="meta"></div>
+    </div>
+  </div>
+
+  <script>
+    const select = document.getElementById('voice-select');
+    const textEl = document.getElementById('text');
+    const metaEl = document.getElementById('meta');
+    const rateEl = document.getElementById('rate');
+    const pitchEl = document.getElementById('pitch');
+    const volumeEl = document.getElementById('volume');
+
+    function describeVoice(voice) {
+      return `${voice.name} | ${voice.lang || 'unknown'} | default=${!!voice.default} | local=${!!voice.localService}`;
+    }
+
+    function populateVoices() {
+      const voices = window.speechSynthesis?.getVoices?.() || [];
+      const previous = select.value;
+      select.innerHTML = '';
+
+      voices.forEach((voice, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = describeVoice(voice);
+        select.appendChild(option);
+      });
+
+      if (!voices.length) {
+        metaEl.textContent = 'No voices available yet. Try waiting a moment, then reload.';
+        return;
+      }
+
+      const preferredNames = [
+        'Google UK English Male',
+        'Google UK English',
+        'Microsoft Ryan Online (Natural) - English (United Kingdom)',
+        'Microsoft Sonia Online (Natural) - English (United Kingdom)',
+      ];
+
+      let preferredIndex = voices.findIndex(v => preferredNames.includes(v.name));
+      if (preferredIndex < 0 && previous) preferredIndex = Number(previous);
+      if (preferredIndex < 0) preferredIndex = 0;
+      select.value = String(preferredIndex);
+
+      metaEl.textContent =
+        `Voices found: ${voices.length}\n\n` +
+        voices.map((voice, i) => `${i}. ${describeVoice(voice)}`).join('\n');
+    }
+
+    function speakNow() {
+      const voices = window.speechSynthesis?.getVoices?.() || [];
+      const selected = voices[Number(select.value)] || null;
+      const utterance = new SpeechSynthesisUtterance(textEl.value || 'Voice test');
+      if (selected) utterance.voice = selected;
+      utterance.rate = Number(rateEl.value) || 1;
+      utterance.pitch = Number(pitchEl.value) || 1;
+      utterance.volume = Number(volumeEl.value) || 1;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    }
+
+    document.getElementById('speak-btn').addEventListener('click', speakNow);
+    document.getElementById('stop-btn').addEventListener('click', () => {
+      window.speechSynthesis.cancel();
+    });
+
+    populateVoices();
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = populateVoices;
+    } else {
+      metaEl.textContent = 'This browser does not support speech synthesis.';
+    }
+  </script>
+</body>
+</html>
