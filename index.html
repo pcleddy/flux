@@ -651,8 +651,10 @@
     .setup-hero { padding: 18px 16px; }
     .board-panel { padding: 16px; }
 
-    /* --- Chat messages in rail: shorter so it doesn't dominate the page --- */
-    .chat-messages { height: 160px; }
+    /* --- Rail on mobile: cap height so history doesn't hog the page --- */
+    .rail-history-wrap { flex: none !important; }
+    .rail-history { max-height: 240px; overflow-y: auto; }
+    .chat-messages { height: 140px; }
 
     /* --- Theme switcher: shrink on small screens --- */
     .theme-switcher { top: 8px; right: 8px; }
