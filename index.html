@@ -611,7 +611,10 @@
   @media (max-width: 700px) {
 
     /* --- Game screen: switch to natural page scroll instead of clipped panels --- */
-    #game-screen {
+    /* Must target #game-screen.active too — it has higher specificity (flex-direction: row;
+       height: 100dvh) and would otherwise win on mobile when a game is in progress. */
+    #game-screen,
+    #game-screen.active {
       flex-direction: column;
       padding: 14px 12px;
       /* Override the 100dvh used on desktop; let content define height */
