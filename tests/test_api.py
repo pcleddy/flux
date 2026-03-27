@@ -69,6 +69,48 @@ class CheckWordApiTests(unittest.TestCase):
         self.assertEqual(resp.json()["status"], "not_in_dictionary")
         self.assertEqual(resp.json()["message"], "Not a word.")
 
+    def test_leave_marks_player_inactive(self):
+        game = main.games[self.game_id]
+        bob_token = next(p.token for p in game.players if p.username == "bob")
+
+        resp = self.client.post(
+            f"/flux/{self.game_id}/leave",
+            json={"player_token": bob_token},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), {"ok": True})
+        self.assertFalse(next(p for p in game.players if p.username == "bob").active)
+
+    def test_rejoin_returns_same_token_for_left_player(self):
+        game = main.games[self.game_id]
+        bob_token = next(p.token for p in game.players if p.username == "bob")
+
+        leave_resp = self.client.post(
+            f"/flux/{self.game_id}/leave",
+            json={"player_token": bob_token},
+        )
+        self.assertEqual(leave_resp.status_code, 200)
+
+        rejoin_resp = self.client.post(
+            f"/flux/{self.game_id}/join",
+            json={"username": "bob"},
+        )
+        self.assertEqual(rejoin_resp.status_code, 200)
+        self.assertEqual(rejoin_resp.json()["player_token"], bob_token)
+        self.assertEqual(rejoin_resp.json()["username"], "bob")
+
+    def test_game_finishes_when_all_players_leave(self):
+        game = main.games[self.game_id]
+        bob_token = next(p.token for p in game.players if p.username == "bob")
+
+        self.client.post(f"/flux/{self.game_id}/leave", json={"player_token": bob_token})
+        resp = self.client.post(
+            f"/flux/{self.game_id}/leave",
+            json={"player_token": self.alice_token},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(main.games[self.game_id].status, "finished")
+
 
 if __name__ == "__main__":
     unittest.main()

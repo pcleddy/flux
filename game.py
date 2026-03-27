@@ -290,6 +290,7 @@ class PlayerState:
         self.username = username
         self.token = token
         self.join_index = join_index
+        self.active: bool = True
         self.score: int = 0
         self.meta_wins: int = 0
         self.history: list[dict] = []
@@ -299,6 +300,7 @@ class PlayerState:
         d = {
             "username": self.username,
             "join_index": self.join_index,
+            "active": self.active,
             "score": self.score,
             "meta_wins": self.meta_wins,
             "history": self.history,
@@ -361,8 +363,11 @@ class FluxGame:
             return None
         return self.players[idx]
 
+    def _active_players(self) -> list[PlayerState]:
+        return [p for p in self.players if p.active]
+
     def _submitted_count(self) -> int:
-        return sum(1 for p in self.players if p.current_submission is not None)
+        return sum(1 for p in self._active_players() if p.current_submission is not None)
 
     def _spin_rack(self) -> None:
         self.current_letters = draw_rack()
@@ -385,13 +390,21 @@ class FluxGame:
 
     def join(self, username: str) -> tuple[bool, str, Optional[str]]:
         """Returns (ok, token_or_error, final_username)."""
-        if self.status != "waiting":
-            return False, "Game already started.", None
-        if len(self.players) >= self.max_players:
+        if self.status == "finished":
+            return False, "Game is finished.", None
+
+        for p in self.players:
+            if p.username == username and not p.active:
+                p.active = True
+                p.current_submission = None
+                self._log(f"↩️ {p.username} rejoined.")
+                return True, p.token, p.username
+
+        if len(self._active_players()) >= self.max_players:
             return False, "Game is full.", None
 
         # Deduplicate username
-        existing = {p.username for p in self.players}
+        existing = {p.username for p in self._active_players()}
         final_username = username
         if final_username in existing:
             suffix = 2
@@ -407,7 +420,7 @@ class FluxGame:
         self._log(f"👋 {final_username} joined.")
 
         # Auto-start if lobby fills
-        if len(self.players) == self.max_players:
+        if self.status == "waiting" and len(self._active_players()) == self.max_players:
             self._start_game()
 
         return True, token, final_username
@@ -417,12 +430,14 @@ class FluxGame:
         player = self._get_player_by_token(token)
         if player is None:
             return False, "Invalid token."
+        if not player.active:
+            return False, "Player has left the game."
         if player.join_index != 0:
             return False, "Only the creator can start the game."
         if self.status != "waiting":
             return False, "Game already started."
-        if len(self.players) < 2:
-            return False, "Need at least 2 players to start."
+        if len(self._active_players()) < 1:
+            return False, "Need at least 1 active player to start."
         self._start_game()
         return True, "ok"
 
@@ -439,6 +454,8 @@ class FluxGame:
         player = self._get_player_by_token(token)
         if player is None:
             return False, "Invalid token."
+        if not player.active:
+            return False, "Player has left the game."
         if self.status != "playing":
             return False, "Game is not active."
         if self.meta_round_banner is not None:
@@ -458,7 +475,7 @@ class FluxGame:
         }
         self._log(f"🤫 {player.username} submitted.")
 
-        if self._submitted_count() == len(self.players):
+        if self._submitted_count() == len(self._active_players()):
             self._resolve_round()
 
         return True, "ok"
@@ -467,6 +484,8 @@ class FluxGame:
         player = self._get_player_by_token(token)
         if player is None:
             return False, "Invalid token."
+        if not player.active:
+            return False, "Player has left the game."
         if self.status != "playing":
             return False, "Game is not active."
         if self.meta_round_banner is not None:
@@ -485,7 +504,7 @@ class FluxGame:
         }
         self._log(f"⏭️ {player.username} passed.")
 
-        if self._submitted_count() == len(self.players):
+        if self._submitted_count() == len(self._active_players()):
             self._resolve_round()
 
         return True, "ok"
@@ -494,6 +513,8 @@ class FluxGame:
         player = self._get_player_by_token(token)
         if player is None:
             return False, {"error": "Invalid token."}
+        if not player.active:
+            return False, {"error": "Player has left the game."}
 
         word_upper = word.upper()
         analysis = analyze_word(word_upper, self.current_letters, self.tile_values)
@@ -520,7 +541,7 @@ class FluxGame:
     def _resolve_round(self) -> None:
         """Called when all players have submitted. Scores, records, checks win."""
         results = []
-        for p in self.players:
+        for p in self._active_players():
             sub = p.current_submission
             if sub.get("passed"):
                 word_display = None
@@ -597,7 +618,7 @@ class FluxGame:
         self._log(f"📋 Round {self.round_num} resolved — {words_str}")
 
         # Check for meta-round win
-        winners = [p for p in self.players if p.score >= self.score_target]
+        winners = [p for p in self._active_players() if p.score >= self.score_target]
         if winners:
             self._end_meta_round(winners)
         else:
@@ -610,7 +631,7 @@ class FluxGame:
     def _end_meta_round(self, contenders: list[PlayerState]) -> None:
         # Winner = highest score; tie → lower join_index
         meta_winner = max(
-            self.players,
+            self._active_players(),
             key=lambda p: (p.score, -p.join_index),
         )
         meta_winner.meta_wins += 1
@@ -618,11 +639,11 @@ class FluxGame:
 
         scores_snapshot = [
             {"username": p.username, "score": p.score, "meta_wins": p.meta_wins}
-            for p in self.players
+            for p in self._active_players()
         ]
 
         # Reset scores
-        for p in self.players:
+        for p in self._active_players():
             p.score = 0
 
         if self.meta_round >= self.num_meta_rounds:
@@ -645,20 +666,48 @@ class FluxGame:
         self.status = "finished"
         # Match winner = most meta_wins; tie → lower join_index
         match_winner = max(
-            self.players,
+            self._active_players(),
             key=lambda p: (p.meta_wins, -p.join_index),
         )
         self.winner = match_winner.username
         self._log(f"🏆 {match_winner.username} wins the match!")
 
     # ------------------------------------------------------------------
-    # Continue / Rematch
+    # Leave / Continue / Rematch
     # ------------------------------------------------------------------
+
+    def leave(self, token: str) -> tuple[bool, str]:
+        player = self._get_player_by_token(token)
+        if player is None:
+            return False, "Invalid token."
+        if not player.active:
+            return False, "Player already left the game."
+        if self.status == "finished":
+            return False, "Game is already finished."
+
+        player.active = False
+        player.current_submission = None
+        self._log(f"👋 {player.username} left the game.")
+
+        active_players = self._active_players()
+        if not active_players:
+            self.status = "finished"
+            self.winner = None
+            self.meta_round_banner = None
+            self._log("🛑 Game finished because all players left.")
+            return True, "ok"
+
+        if self.status == "playing" and self._submitted_count() == len(active_players):
+            self._resolve_round()
+
+        return True, "ok"
 
     def continue_game(self, token: str) -> tuple[bool, str]:
         player = self._get_player_by_token(token)
         if player is None:
             return False, "Invalid token."
+        if not player.active:
+            return False, "Player has left the game."
         if self.meta_round_banner is None:
             return False, "No meta-round banner to continue from."
 
@@ -673,6 +722,8 @@ class FluxGame:
         player = self._get_player_by_token(token)
         if player is None:
             return False, "Invalid token."
+        if not player.active:
+            return False, "Player has left the game."
         if self.status != "finished":
             return False, "Can only rematch when the game is finished."
 
@@ -703,6 +754,8 @@ class FluxGame:
         player = self._get_player_by_token(token)
         if player is None:
             return False, "Invalid token."
+        if not player.active:
+            return False, "Player has left the game."
         message = message[:200]
         self.chat.append({"username": player.username, "text": message})
         if len(self.chat) > 40:
@@ -715,7 +768,7 @@ class FluxGame:
 
     def to_dict(self) -> dict:
         submitted_players = [
-            p.username for p in self.players if p.current_submission is not None
+            p.username for p in self._active_players() if p.current_submission is not None
         ]
         return {
             "game_id": self.game_id,

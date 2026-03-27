@@ -212,6 +212,16 @@ def pass_turn(game_id: str, req: TokenRequest):
     return game.to_dict()
 
 
+@app.post("/flux/{game_id}/leave")
+def leave_game(game_id: str, req: TokenRequest):
+    game = _get_game(game_id)
+    ok, msg = game.leave(req.player_token)
+    if not ok:
+        code = 403 if msg == "Invalid token." else 400
+        raise HTTPException(code, msg)
+    return {"ok": True}
+
+
 @app.post("/flux/{game_id}/check_word")
 def check_word(game_id: str, req: CheckWordRequest):
     game = _get_game(game_id)

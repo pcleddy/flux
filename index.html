@@ -469,6 +469,7 @@
         </div>
         <div class="error-msg" id="join-error"></div>
         <button class="btn btn-primary btn-full" id="join-btn">Join Game</button>
+        <button class="btn btn-secondary btn-full" id="rejoin-btn" style="display:none;margin-top:10px;">Rejoin Last Game</button>
       </div>
     </div>
   </div>
@@ -490,6 +491,7 @@
       <div class="error-msg" id="lobby-error"></div>
       <button class="btn btn-primary btn-full" id="lobby-start-btn" style="display:none;">Start Game</button>
       <div style="margin-top:8px;text-align:center;">
+        <span class="forget-link" id="lobby-leave" style="margin-right:16px;">Leave game</span>
         <span class="forget-link" id="lobby-forget">Forget this game</span>
       </div>
 
@@ -558,6 +560,7 @@
       </div>
 
       <div style="text-align:center;padding-bottom:8px;">
+        <span class="forget-link" id="game-leave" style="margin-right:16px;">Leave game</span>
         <span class="forget-link" id="game-forget">Clear game &amp; start over</span>
       </div>
 
@@ -600,6 +603,7 @@
   <button class="theme-btn active" data-theme="dark">dark</button>
   <button class="theme-btn" data-theme="twilight">twilight</button>
   <button class="theme-btn" data-theme="noon">noon</button>
+  <button class="theme-btn" id="sound-toggle">sound on</button>
 </div>
 
 <!-- Meta-round banner overlay (injected dynamically) -->
@@ -634,6 +638,11 @@ let state = {
   lastRoundSubmitted: false, // track whether we already showed submitted for this round
   previewTimer: null,
   chatScrolled: { lobby: true, game: true },
+  soundEnabled: localStorage.getItem('flux_sound') !== 'off',
+  audioCtx: null,
+  lastPreviewStatus: null,
+  lastBannerKey: null,
+  lastGameOverKey: null,
 };
 
 // =====================================================================
@@ -643,6 +652,20 @@ function saveSession() {
   localStorage.setItem('flux_gameId', state.gameId || '');
   localStorage.setItem('flux_playerToken', state.playerToken || '');
   localStorage.setItem('flux_username', state.myUsername || '');
+}
+function rememberLeftGame(gameId, username) {
+  localStorage.setItem('flux_leftGameId', gameId || '');
+  localStorage.setItem('flux_leftUsername', username || '');
+}
+function loadLeftGame() {
+  return {
+    gameId: localStorage.getItem('flux_leftGameId') || '',
+    username: localStorage.getItem('flux_leftUsername') || '',
+  };
+}
+function clearLeftGame() {
+  localStorage.removeItem('flux_leftGameId');
+  localStorage.removeItem('flux_leftUsername');
 }
 function clearSession() {
   localStorage.removeItem('flux_gameId');
@@ -680,6 +703,93 @@ async function api(method, path, body) {
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
   return data;
+}
+
+// =====================================================================
+// SOUND
+// =====================================================================
+function ensureAudioContext() {
+  if (!state.soundEnabled) return null;
+  if (!state.audioCtx) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    state.audioCtx = new AudioCtx();
+  }
+  if (state.audioCtx.state === 'suspended') {
+    state.audioCtx.resume().catch(() => {});
+  }
+  return state.audioCtx;
+}
+
+function playTone(freq, startOffset, duration, type = 'sine', gainValue = 0.035) {
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, ctx.currentTime + startOffset);
+  gain.gain.setValueAtTime(0.0001, ctx.currentTime + startOffset);
+  gain.gain.exponentialRampToValueAtTime(gainValue, ctx.currentTime + startOffset + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + startOffset + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(ctx.currentTime + startOffset);
+  osc.stop(ctx.currentTime + startOffset + duration + 0.03);
+}
+
+function playConfirmSound() {
+  playTone(740, 0.00, 0.16, 'triangle', 0.03);
+  playTone(987, 0.10, 0.22, 'sine', 0.028);
+}
+
+function playPassSound() {
+  playTone(260, 0.00, 0.15, 'triangle', 0.025);
+  playTone(220, 0.10, 0.18, 'triangle', 0.02);
+}
+
+function playPreviewValidSound() {
+  playTone(880, 0.00, 0.08, 'sine', 0.018);
+  playTone(1174, 0.06, 0.10, 'sine', 0.016);
+}
+
+function playCelebrationSound() {
+  playTone(784, 0.00, 0.18, 'triangle', 0.05);
+  playTone(1046, 0.10, 0.22, 'triangle', 0.045);
+  playTone(1318, 0.24, 0.30, 'triangle', 0.04);
+}
+
+function playClapSound() {
+  playTone(420, 0.00, 0.05, 'square', 0.02);
+  playTone(540, 0.08, 0.05, 'square', 0.02);
+  playTone(660, 0.16, 0.05, 'square', 0.02);
+  playTone(720, 0.24, 0.06, 'square', 0.02);
+}
+
+function speak(text) {
+  if (!state.soundEnabled || !('speechSynthesis' in window) || !text) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 1.02;
+  utterance.pitch = 1.08;
+  utterance.volume = 0.85;
+  window.speechSynthesis.speak(utterance);
+}
+
+function soundAffirmation(kind) {
+  const phrases = {
+    valid: ['Excellent.', 'Nice word.', 'Strong play.'],
+    meta: ['Excellent. Meta round win.', 'Beautiful. On to the next round.', 'Huge round.'],
+    match: ['Outstanding. Match win.', 'Brilliant. Game over.', 'What a finish.'],
+  };
+  const options = phrases[kind] || phrases.valid;
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+function updateSoundToggle() {
+  const btn = document.getElementById('sound-toggle');
+  if (!btn) return;
+  btn.textContent = state.soundEnabled ? 'sound on' : 'sound off';
+  btn.classList.toggle('active', state.soundEnabled);
 }
 
 // =====================================================================
@@ -728,10 +838,12 @@ function initSetupScreen() {
 
   document.getElementById('create-btn').addEventListener('click', doCreate);
   document.getElementById('join-btn').addEventListener('click', doJoin);
+  document.getElementById('rejoin-btn').addEventListener('click', doRejoin);
 
   document.getElementById('create-username').addEventListener('keydown', e => { if (e.key === 'Enter') doCreate(); });
   document.getElementById('join-gameid').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
   document.getElementById('join-username').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+  refreshRejoinButton();
 }
 
 function switchTab(tab) {
@@ -778,6 +890,7 @@ async function doCreate() {
     state.playerToken = data.player_token;
     state.myUsername = username;
     state.isCreator = true;
+    clearLeftGame();
     saveSession();
     enterLobby();
   } catch(e) {
@@ -803,12 +916,41 @@ async function doJoin() {
     state.playerToken = data.player_token;
     state.myUsername = data.username;
     state.isCreator = false;
+    clearLeftGame();
     saveSession();
     enterLobby();
   } catch(e) {
     err.textContent = e.message;
   } finally {
     btn.disabled = false; btn.textContent = 'Join Game';
+  }
+}
+
+async function doRejoin() {
+  const left = loadLeftGame();
+  const err = document.getElementById('join-error');
+  err.textContent = '';
+  if (!left.gameId || !left.username) {
+    err.textContent = 'No unfinished game to rejoin.';
+    refreshRejoinButton();
+    return;
+  }
+  document.getElementById('join-username').value = left.username;
+  document.getElementById('join-gameid').value = left.gameId;
+  switchTab('join');
+  await doJoin();
+}
+
+function refreshRejoinButton() {
+  const btn = document.getElementById('rejoin-btn');
+  if (!btn) return;
+  const left = loadLeftGame();
+  const visible = !!(left.gameId && left.username);
+  btn.style.display = visible ? 'block' : 'none';
+  if (visible) {
+    btn.textContent = `Rejoin ${left.gameId}`;
+    document.getElementById('join-username').value = left.username;
+    document.getElementById('join-gameid').value = left.gameId;
   }
 }
 
@@ -845,6 +987,7 @@ function initLobbyUI() {
     }
   };
 
+  document.getElementById('lobby-leave').onclick = leaveCurrentGame;
   document.getElementById('lobby-forget').onclick = forgetAndReset;
 
   // Chat
@@ -862,7 +1005,7 @@ function initLobbyUI() {
 
 function renderLobby(game) {
   const list = document.getElementById('lobby-player-list');
-  list.innerHTML = game.players.map(p => `
+  list.innerHTML = game.players.filter(p => p.active).map(p => `
     <div class="player-row">
       <div class="player-dot"></div>
       <span>${esc(p.username)}</span>
@@ -872,11 +1015,12 @@ function renderLobby(game) {
 
   const startBtn = document.getElementById('lobby-start-btn');
   if (state.isCreator) {
+    const activePlayers = game.players.filter(p => p.active).length;
     startBtn.style.display = 'block';
-    startBtn.disabled = game.players.length < 2;
-    startBtn.textContent = game.players.length < 2
+    startBtn.disabled = activePlayers < 1;
+    startBtn.textContent = activePlayers < 1
       ? 'Waiting for players…'
-      : `Start Game (${game.players.length}/${game.max_players})`;
+      : `Start Game (${activePlayers}/${game.max_players})`;
   }
 
   renderChat(game.chat, 'lobby-chat-messages');
@@ -891,6 +1035,7 @@ function enterGame(game) {
   initGameInput();
   initGameChat();
   document.getElementById('gameover-forget').onclick = forgetAndReset;
+  document.getElementById('game-leave').onclick = leaveCurrentGame;
   document.getElementById('game-forget').onclick = forgetAndReset;
   renderGame(game);
 }
@@ -909,6 +1054,7 @@ function initGameInput() {
     try {
       const data = await api('POST', `/flux/${state.gameId}/play`, { player_token: state.playerToken, word });
       state.lastRoundSubmitted = true;
+      playConfirmSound();
       handleGameState(data);
     } catch(e) {
       errorEl.textContent = e.message;
@@ -923,6 +1069,7 @@ function initGameInput() {
     try {
       const data = await api('POST', `/flux/${state.gameId}/pass`, { player_token: state.playerToken });
       state.lastRoundSubmitted = true;
+      playPassSound();
       handleGameState(data);
     } catch(e) {
       errorEl.textContent = e.message;
@@ -1020,7 +1167,7 @@ function renderSubmittedState(game) {
     submittedArea.style.display = 'block';
     if (inputArea) inputArea.style.display = 'none';
     const pills = document.getElementById('waiting-pills');
-    pills.innerHTML = game.players.map(p => {
+    pills.innerHTML = game.players.filter(p => p.active).map(p => {
       const done = game.submitted_players.includes(p.username);
       return `<div class="waiting-pill${done ? ' done' : ''}">${esc(p.username)}</div>`;
     }).join('');
@@ -1099,13 +1246,18 @@ function onWordInput() {
       if (result.status === 'valid') {
         highlightWordTiles(word, state.game.current_letters || []);
         preview.innerHTML = FluxFrontendLogic.buildPreviewHtml(result, esc);
+        if (state.lastPreviewStatus !== 'valid') {
+          playPreviewValidSound();
+        }
       } else {
         preview.innerHTML = FluxFrontendLogic.buildPreviewHtml(result, esc);
       }
+      state.lastPreviewStatus = result.status;
     } catch(e) {
       if (input.value.trim().toUpperCase() === word) {
         preview.innerHTML = '';
       }
+      state.lastPreviewStatus = null;
     }
   }, 180);
 }
@@ -1149,7 +1301,7 @@ function renderRoundSummary(game) {
 
 function renderScoreboard(game) {
   const container = document.getElementById('score-rows');
-  container.innerHTML = game.players.map(p => {
+  container.innerHTML = game.players.filter(p => p.active).map(p => {
     const pct = Math.min(100, Math.round((p.score / game.score_target) * 100));
     const isMe = p.username === state.myUsername;
     const lastWords = p.history.slice(-5).map(h =>
@@ -1257,6 +1409,13 @@ function renderMetaBanner(game) {
   `;
   document.body.appendChild(overlay);
 
+  const bannerKey = `${b.meta_round}:${b.winner}`;
+  if (state.lastBannerKey !== bannerKey) {
+    state.lastBannerKey = bannerKey;
+    playCelebrationSound();
+    speak(soundAffirmation('meta'));
+  }
+
   document.getElementById('continue-btn').onclick = async () => {
     document.getElementById('continue-btn').disabled = true;
     try {
@@ -1274,9 +1433,21 @@ function renderMetaBanner(game) {
 function renderGameOver(game) {
   showScreen('gameover-screen');
 
+  const gameOverKey = `${game.game_id}:${game.winner}:${game.num_meta_rounds}`;
+  if (state.lastGameOverKey !== gameOverKey) {
+    state.lastGameOverKey = gameOverKey;
+    playCelebrationSound();
+    playClapSound();
+    speak(`${game.winner} wins the match. ${soundAffirmation('match')}`);
+  }
+
   const sorted = [...game.players].sort((a, b) => b.meta_wins - a.meta_wins || a.join_index - b.join_index);
-  document.getElementById('gameover-title').textContent = `${game.winner} wins the match!`;
-  document.getElementById('gameover-sub').textContent = `Final results after ${game.num_meta_rounds} meta-round${game.num_meta_rounds > 1 ? 's' : ''}.`;
+  document.getElementById('gameover-title').textContent = game.winner
+    ? `${game.winner} wins the match!`
+    : 'Game finished.';
+  document.getElementById('gameover-sub').textContent = game.winner
+    ? `Final results after ${game.num_meta_rounds} meta-round${game.num_meta_rounds > 1 ? 's' : ''}.`
+    : 'Everyone left, so this game was closed.';
 
   const medals = ['🥇', '🥈', '🥉'];
   document.getElementById('final-scores').innerHTML = sorted.map((p, i) =>
@@ -1354,10 +1525,33 @@ function forgetAndReset() {
   if (confirm('Clear this game and return to setup?')) {
     clearSession();
     stopPolling();
+    state.lastPreviewStatus = null;
+    state.lastBannerKey = null;
+    state.lastGameOverKey = null;
     // Remove any lingering overlay
     const overlay = document.getElementById('meta-overlay');
     if (overlay) overlay.remove();
     showScreen('setup-screen');
+    refreshRejoinButton();
+  }
+}
+
+async function leaveCurrentGame() {
+  if (!state.gameId || !state.playerToken || !state.myUsername) return;
+  if (!confirm('Leave this game? You can rejoin later while it is unfinished.')) return;
+
+  try {
+    await api('POST', `/flux/${state.gameId}/leave`, { player_token: state.playerToken });
+    rememberLeftGame(state.gameId, state.myUsername);
+    clearSession();
+    stopPolling();
+    state.lastPreviewStatus = null;
+    showScreen('setup-screen');
+    switchTab('join');
+    refreshRejoinButton();
+  } catch (e) {
+    const err = document.getElementById('join-error');
+    if (err) err.textContent = e.message;
   }
 }
 
@@ -1385,8 +1579,20 @@ function initTheme() {
   const saved = localStorage.getItem('flux_theme') || 'dark';
   applyTheme(saved);
   document.querySelectorAll('.theme-btn').forEach(btn => {
-    btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
+    if (btn.dataset.theme) {
+      btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
+    }
   });
+  const soundBtn = document.getElementById('sound-toggle');
+  if (soundBtn) {
+    updateSoundToggle();
+    soundBtn.onclick = () => {
+      state.soundEnabled = !state.soundEnabled;
+      localStorage.setItem('flux_sound', state.soundEnabled ? 'on' : 'off');
+      updateSoundToggle();
+      if (state.soundEnabled) playConfirmSound();
+    };
+  }
 }
 
 // =====================================================================
