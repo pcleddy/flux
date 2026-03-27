@@ -757,6 +757,7 @@
         <div class="field">
           <label>Max players</label>
           <div class="setting-row" id="max-players-opts">
+            <div class="setting-opt" data-val="1">Solo</div>
             <div class="setting-opt selected" data-val="2">2</div>
             <div class="setting-opt" data-val="3">3</div>
             <div class="setting-opt" data-val="4">4</div>
@@ -1389,7 +1390,7 @@ function renderGameBoard(games) {
       </div>
       <div class="game-card-bottom">
         <div class="game-card-facts">
-          <span>players ${game.active_players}/${game.max_players}</span>
+          <span>${game.max_players === 1 ? 'solo' : `players ${game.active_players}/${game.max_players}`}</span>
           <span>MR ${game.meta_round}/${game.num_meta_rounds}</span>
           <span>round ${game.round_num || 0}</span>
         </div>
@@ -1514,13 +1515,23 @@ function renderLobby(game) {
   `).join('');
 
   const startBtn = document.getElementById('lobby-start-btn');
+  const title = document.querySelector('#lobby-screen .lobby-title');
+  const sub = document.getElementById('lobby-sub');
+  if (title) title.textContent = 'Waiting for players…';
+  if (sub) sub.textContent = 'Share this link with friends:';
   if (state.isCreator) {
     const activePlayers = game.players.filter(p => p.active).length;
     startBtn.style.display = 'block';
     startBtn.disabled = activePlayers < 1;
-    startBtn.textContent = activePlayers < 1
-      ? 'Waiting for players…'
-      : `Start Game (${activePlayers}/${game.max_players})`;
+    if (game.max_players === 1) {
+      if (title) title.textContent = 'Solo game ready';
+      if (sub) sub.textContent = 'You can start immediately, or copy the link if you want to reopen this game elsewhere.';
+      startBtn.textContent = 'Start Solo Game';
+    } else {
+      startBtn.textContent = activePlayers < 1
+        ? 'Waiting for players…'
+        : `Start Game (${activePlayers}/${game.max_players})`;
+    }
   }
 
   renderChat(game.chat, 'lobby-chat-messages');
@@ -1651,7 +1662,7 @@ function renderTiles(game, animate) {
   game.current_letters.forEach((letter, i) => {
     const val = game.tile_values[letter] ?? 0;
     const tier = val <= 2 ? 'cheap' : val <= 5 ? 'mid' : val <= 8 ? 'premium' : 'hot';
-    const label = letter === '*' ? `★${val}` : letter;
+    const label = letter === '*' ? '★' : letter;
     const div = document.createElement('div');
     div.className = `tile tile-${tier}${animate ? ' spinning' : ''}`;
     div.dataset.letter = letter;

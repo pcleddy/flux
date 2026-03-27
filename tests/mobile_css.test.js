@@ -136,3 +136,17 @@ test('mobile: word row has flex-wrap so Submit/Pass do not get squashed', () => 
     'Expected "flex-wrap: wrap" on .word-row inside mobile media query'
   );
 });
+
+test('rack: joker tile label does not inline its point value beside the icon', () => {
+  assert.ok(
+    !html.includes("`★${val}`"),
+    'Expected joker tiles to render the icon only, with points shown in the shared value row below'
+  );
+});
+
+test('setup: create screen exposes a visible Solo option', () => {
+  assert.ok(
+    html.includes('data-val="1">Solo</div>'),
+    'Expected a visible Solo option in the max players selector'
+  );
+});
