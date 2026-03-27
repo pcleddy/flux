@@ -380,7 +380,8 @@
 
   /* ---- Game Screen ---- */
   #game-screen { overflow: hidden; padding: 22px; gap: 18px; max-width: 1360px; width: 100%; margin: 0 auto; }
-  #game-screen.active { flex-direction: row; }
+  /* height: 100dvh bounds the flex children so game-main overflow-y:auto actually scrolls */
+  #game-screen.active { flex-direction: row; height: 100dvh; }
   .game-main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; gap: 16px; min-width: 0; }
   .game-rail {
     width: 320px; flex-shrink: 0; display: flex; flex-direction: column;
@@ -606,14 +607,71 @@
   .theme-btn.active { background: var(--accent); color: #fff; }
   .theme-btn:not(.active):hover { color: var(--text); }
 
-  /* Responsive: hide rail below 700px */
+  /* ---- Mobile ---- */
   @media (max-width: 700px) {
-    #game-screen { flex-direction: column; padding: 16px; }
-    .game-rail { width: 100%; }
+
+    /* --- Game screen: switch to natural page scroll instead of clipped panels --- */
+    #game-screen {
+      flex-direction: column;
+      padding: 14px 12px;
+      /* Override the 100dvh used on desktop; let content define height */
+      height: auto !important;
+      /* Allow vertical scrolling; suppress horizontal bleed */
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+    /* game-main no longer needs its own scroll; the game screen scrolls as a page */
+    .game-main {
+      overflow-y: visible;
+    }
+    /* Rail goes full-width below the main area; unhide clipped content */
+    .game-rail {
+      width: 100%;
+      overflow: visible;
+    }
+
+    /* --- Tiles: slightly smaller to fit 8 across on narrow screens --- */
+    .tile { width: 46px; height: 50px; }
+    .tile-letter { font-size: 17px; }
+    .tile-value { font-size: 9px; }
+
+    /* --- Word input row: wrap so Pass/Submit don't get squashed --- */
+    .word-row { flex-wrap: wrap; }
+    /* iOS Safari zooms in when font-size < 16px on focused inputs */
+    input[type="text"], input[type="number"], select,
+    #word-input, .chat-input { font-size: 16px !important; }
+
+    /* --- Setup screen --- */
     .setup-glance { grid-template-columns: 1fr; }
     .logo-row { flex-direction: column; align-items: flex-start; }
     .board-top { flex-direction: column; }
     .board-actions { justify-content: flex-start; }
+    /* Tighten setup screen padding on small phones */
+    #setup-screen { padding: 16px 14px; }
+    .setup-hero { padding: 18px 16px; }
+    .board-panel { padding: 16px; }
+
+    /* --- Chat messages in rail: shorter so it doesn't dominate the page --- */
+    .chat-messages { height: 160px; }
+
+    /* --- Theme switcher: shrink on small screens --- */
+    .theme-switcher { top: 8px; right: 8px; }
+    .theme-btn { padding: 4px 8px; font-size: 11px; }
+  }
+
+  /* Extra-small phones (≤ 390px): tighten spacing a bit more */
+  @media (max-width: 390px) {
+    .tile { width: 42px; height: 46px; }
+    .tile-letter { font-size: 15px; }
+    .rack-tiles { gap: 7px; }
+    .word-actions { flex-wrap: wrap; }
+  }
+
+  /* Touch: eliminate 300ms tap delay and ensure comfortable hit areas */
+  @media (hover: none) and (pointer: coarse) {
+    .btn { touch-action: manipulation; min-height: 44px; }
+    .setting-opt { touch-action: manipulation; min-height: 44px; }
+    .setup-tab { touch-action: manipulation; min-height: 44px; }
   }
 </style>
 </head>
