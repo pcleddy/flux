@@ -139,6 +139,11 @@ class JoinRequest(BaseModel):
     username: str
 
 
+class RejoinRequest(BaseModel):
+    username: str
+    rejoin_code: str
+
+
 class TokenRequest(BaseModel):
     player_token: str
 
@@ -193,7 +198,8 @@ def create_game(req: CreateGameRequest):
         max_players=req.max_players,
     )
     games[game_id] = game
-    return {"game_id": game_id, "player_token": token}
+    access = game.player_access_dict(token) or {}
+    return {"game_id": game_id, "player_token": token, **access}
 
 
 @app.post("/flux/{game_id}/join")
@@ -204,7 +210,21 @@ def join_game(game_id: str, req: JoinRequest):
     ok, result, final_username = game.join(req.username.strip()[:30])
     if not ok:
         raise HTTPException(400, result)
-    return {"game_id": game.game_id, "player_token": result, "username": final_username}
+    access = game.player_access_dict(result) or {}
+    return {"game_id": game.game_id, "player_token": result, "username": final_username, **access}
+
+
+@app.post("/flux/{game_id}/rejoin")
+def rejoin_game(game_id: str, req: RejoinRequest):
+    game = _get_game(game_id)
+    if not req.username.strip():
+        raise HTTPException(400, "Username required.")
+    if not req.rejoin_code.strip():
+        raise HTTPException(400, "Rejoin code required.")
+    ok, result, msg = game.rejoin_with_code(req.username.strip()[:30], req.rejoin_code)
+    if not ok:
+        raise HTTPException(400, msg or "Could not rejoin game.")
+    return {"game_id": game.game_id, **(result or {})}
 
 
 @app.post("/flux/{game_id}/start")
@@ -251,6 +271,15 @@ def leave_game(game_id: str, req: TokenRequest):
         code = 403 if msg == "Invalid token." else 400
         raise HTTPException(code, msg)
     return {"ok": True}
+
+
+@app.post("/flux/{game_id}/access")
+def player_access(game_id: str, req: TokenRequest):
+    game = _get_game(game_id)
+    access = game.player_access_dict(req.player_token)
+    if access is None:
+        raise HTTPException(403, "Invalid token.")
+    return access
 
 
 @app.post("/flux/{game_id}/check_word")

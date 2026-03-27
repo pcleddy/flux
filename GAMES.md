@@ -2,6 +2,43 @@
 
 This document defines the default lifecycle, board behavior, and join/leave rules for games in the overall game board. It is intended to be a reusable base for future games, not just Flux.
 
+## How To Use This Spec
+
+Use this document as the shared base spec for any game that needs:
+
+- a board-first landing screen
+- a list of current games
+- create/join/rejoin behavior
+- leave and return behavior
+- lightweight player identity and device handoff
+
+This spec is meant to work alongside a separate game-specific rules document.
+
+Recommended split:
+
+- `GAMES.md` defines the shared system behavior
+- a game-specific spec defines the actual game rules
+
+`GAMES.md` should usually own:
+
+- board and lobby behavior
+- game states
+- join/leave/rejoin flows
+- identity and rejoin model
+- cross-device movement
+- default API/data-shape expectations
+
+The game-specific rules doc should usually own:
+
+- round rules
+- scoring
+- win conditions
+- turn structure
+- special actions
+- any game-specific permissions or exceptions
+
+If the game-specific rules doc conflicts with this spec, the game-specific rules should explicitly call out the exception rather than silently overriding the base behavior.
+
 ## Overview
 
 The system supports a list of games. Each game is a joinable activity with:
@@ -95,10 +132,61 @@ Default UX behavior:
 - If the board knows a likely username from local memory or recent session state, it may use that to join directly.
 - Only fall back to a join form when the system does not know who the player is.
 
+Default identity model:
+
+- display name should be treated as presentation, not as the sole source of identity
+- each player should have a stable internal `player_id`
+- each player should have a current session token for the active device
+- each player should have a short rejoin credential for recovery or device transfer
+
+Recommended default rejoin mechanism:
+
+- `player_id` for stable identity
+- `session_token` for the current active session
+- `rejoin_code` for cross-device recovery or reconnection
+
 Default remembered values:
 
 - last known username
 - last unfinished game the player left
+- last known rejoin credential when appropriate
+
+## Move To Another Device
+
+Games should support a low-friction handoff flow from one device to another.
+
+Recommended default UX:
+
+- include a `Move to another device` action while in a lobby or active game
+- show the player:
+  - game ID
+  - player name
+  - short rejoin code
+- allow the new device to reconnect using those values
+- keep the field order consistent between the transfer UI and the reconnect UI
+
+Recommended transfer behavior:
+
+- the new-device rejoin should preserve the same player identity
+- the current active session token should be replaced or rotated
+- the player should not appear twice in the same game
+
+This is the preferred default for casual session-based games because it supports:
+
+- player uniqueness
+- low-friction recovery
+- browser-to-phone or laptop-to-phone handoff
+- stronger identity than display-name matching alone
+
+Traditional username/password login is not the recommended default for casual board games unless the product is account-based more broadly.
+
+Recommended reconnect form order:
+
+1. game ID
+2. player name
+3. rejoin code
+
+The reconnect form should mirror the transfer screen as closely as possible to reduce copy mistakes during device handoff.
 
 ## Active Vs Inactive Players
 
@@ -154,6 +242,7 @@ At minimum, the system should support:
 - list games
 - create game
 - join game
+- rejoin game
 - leave game
 - get game state
 
@@ -172,6 +261,7 @@ Recommended game-level player fields:
 - stable player identity
 - active/inactive status
 - creator marker or creator identity
+- short rejoin credential or equivalent recovery mechanism
 
 ## Minimal Data Model
 
@@ -194,6 +284,8 @@ A minimal player record could include:
 
 - `player_id`
 - `display_name`
+- `session_token`
+- `rejoin_code`
 - `active`
 - `joined_at`
 - `left_at`
@@ -215,4 +307,5 @@ Default frontend behavior should be:
 - Rejoining is allowed only while the game is still unfinished.
 - Direct board join/rejoin is the preferred default experience.
 - The join form should be a fallback, not the primary path, when the system already knows the player identity.
+- Cross-device transfer should prefer a short rejoin code over a traditional password for casual session-based games.
 - Solo games should follow the same lifecycle rules, with the creator also being the only participant.

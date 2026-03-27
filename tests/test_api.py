@@ -34,9 +34,12 @@ class CheckWordApiTests(unittest.TestCase):
         created_data = created.json()
         self.game_id = created_data["game_id"]
         self.alice_token = created_data["player_token"]
+        self.assertIn("rejoin_code", created_data)
+        self.alice_rejoin_code = created_data["rejoin_code"]
 
         joined = self.client.post(f"/flux/{self.game_id}/join", json={"username": "bob"})
         joined.raise_for_status()
+        self.bob_rejoin_code = joined.json()["rejoin_code"]
 
         game = main.games[self.game_id]
         game.current_letters = list("CARTS")
@@ -98,6 +101,25 @@ class CheckWordApiTests(unittest.TestCase):
         self.assertEqual(rejoin_resp.status_code, 200)
         self.assertEqual(rejoin_resp.json()["player_token"], bob_token)
         self.assertEqual(rejoin_resp.json()["username"], "bob")
+
+    def test_rejoin_with_code_returns_new_token(self):
+        game = main.games[self.game_id]
+        bob_token = next(p.token for p in game.players if p.username == "bob")
+
+        leave_resp = self.client.post(
+            f"/flux/{self.game_id}/leave",
+            json={"player_token": bob_token},
+        )
+        self.assertEqual(leave_resp.status_code, 200)
+
+        rejoin_resp = self.client.post(
+            f"/flux/{self.game_id}/rejoin",
+            json={"username": "bob", "rejoin_code": self.bob_rejoin_code},
+        )
+        self.assertEqual(rejoin_resp.status_code, 200)
+        self.assertEqual(rejoin_resp.json()["username"], "bob")
+        self.assertNotEqual(rejoin_resp.json()["player_token"], bob_token)
+        self.assertEqual(rejoin_resp.json()["rejoin_code"], self.bob_rejoin_code)
 
     def test_game_finishes_when_all_players_leave(self):
         game = main.games[self.game_id]

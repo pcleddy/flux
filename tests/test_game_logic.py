@@ -60,6 +60,17 @@ class LeaveRejoinTests(unittest.TestCase):
         self.assertEqual(username, "bob")
         self.assertTrue(next(p for p in self.game.players if p.username == "bob").active)
 
+    def test_rejoin_with_code_rotates_token_and_restores_player(self):
+        bob = next(p for p in self.game.players if p.username == "bob")
+        old_token = bob.token
+        self.game.leave(old_token)
+        ok, result, msg = self.game.rejoin_with_code("bob", bob.rejoin_code)
+        self.assertTrue(ok)
+        self.assertIsNone(msg)
+        self.assertEqual(result["username"], "bob")
+        self.assertNotEqual(result["player_token"], old_token)
+        self.assertTrue(bob.active)
+
     def test_game_finishes_when_everyone_leaves(self):
         self.game.leave(self.bob_token)
         ok, msg = self.game.leave("tok-alice")

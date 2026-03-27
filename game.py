@@ -39,6 +39,11 @@ TIER_RANGES = {
 
 GAME_TTL = 4 * 3600  # 4 hours in seconds
 
+
+def generate_rejoin_code() -> str:
+    chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "".join(random.choices(chars, k=6))
+
 # ---------------------------------------------------------------------------
 # Dictionary (loaded once, injected at startup)
 # ---------------------------------------------------------------------------
@@ -288,7 +293,9 @@ def validate_word(word: str, rack: list[str], tile_values: dict[str, int]) -> tu
 class PlayerState:
     def __init__(self, username: str, token: str, join_index: int):
         self.username = username
+        self.player_id = str(uuid.uuid4())
         self.token = token
+        self.rejoin_code = generate_rejoin_code()
         self.join_index = join_index
         self.active: bool = True
         self.score: int = 0
@@ -299,6 +306,7 @@ class PlayerState:
     def to_dict(self, include_submission=False) -> dict:
         d = {
             "username": self.username,
+            "player_id": self.player_id,
             "join_index": self.join_index,
             "active": self.active,
             "score": self.score,
@@ -424,6 +432,36 @@ class FluxGame:
             self._start_game()
 
         return True, token, final_username
+
+    def rejoin_with_code(self, username: str, rejoin_code: str) -> tuple[bool, Optional[dict], Optional[str]]:
+        if self.status == "finished":
+            return False, None, "Game is finished."
+
+        normalized_code = rejoin_code.strip().upper()
+        for p in self.players:
+            if p.username != username:
+                continue
+            if p.rejoin_code != normalized_code:
+                continue
+
+            old_token = p.token
+            if old_token in self.token_map:
+                del self.token_map[old_token]
+
+            new_token = str(uuid.uuid4())
+            p.token = new_token
+            p.active = True
+            p.current_submission = None
+            self.token_map[new_token] = p.join_index
+            self._log(f"📱 {p.username} rejoined from another device.")
+            return True, {
+                "player_token": new_token,
+                "username": p.username,
+                "player_id": p.player_id,
+                "rejoin_code": p.rejoin_code,
+            }, None
+
+        return False, None, "Name and rejoin code did not match this unfinished game."
 
     def start(self, token: str) -> tuple[bool, str]:
         """Creator manually starts the game."""
@@ -788,6 +826,17 @@ class FluxGame:
             "chat": self.chat,
             "last_round_summary": self.last_round_summary,
             "round_history": self.round_history,
+        }
+
+    def player_access_dict(self, token: str) -> Optional[dict]:
+        player = self._get_player_by_token(token)
+        if player is None:
+            return None
+        return {
+            "game_id": self.game_id,
+            "username": player.username,
+            "player_id": player.player_id,
+            "rejoin_code": player.rejoin_code,
         }
 
     def is_expired(self) -> bool:

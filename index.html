@@ -551,6 +551,28 @@
   .overlay-last-word { font-weight: 800; font-family: monospace; font-size: 15px; color: var(--text); }
   .overlay-last-player { color: var(--muted); flex: 1; }
   .overlay-last-pts { color: var(--green); font-weight: 700; }
+  .device-code {
+    margin: 16px 0;
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: rgba(31, 26, 57, 0.92);
+    border: 1px solid rgba(255, 208, 74, 0.4);
+    text-align: center;
+  }
+  .device-code-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .device-code-value {
+    font-family: monospace;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: var(--yellow);
+  }
 
   /* Game over */
   #gameover-screen { align-items: center; justify-content: center; padding: 20px; }
@@ -684,18 +706,23 @@
 
       <!-- Join panel -->
       <div class="setup-panel card" id="panel-join">
-        <div class="panel-title">Join Or Rejoin</div>
-        <div class="panel-sub">Drop in with a game code, or jump back into an unfinished match you already left.</div>
+      <div class="panel-title">Join Or Rejoin</div>
+      <div class="panel-sub">Drop in with a game code, or jump back into an unfinished match you already left.</div>
+      <div class="field">
+          <label>Game ID</label>
+          <input type="text" id="join-gameid" maxlength="8" autocomplete="off" style="text-transform:uppercase;letter-spacing:2px;">
+        </div>
         <div class="field">
           <label>Your username</label>
           <input type="text" id="join-username" maxlength="30" autocomplete="off">
         </div>
         <div class="field">
-          <label>Game ID</label>
-          <input type="text" id="join-gameid" maxlength="8" autocomplete="off" style="text-transform:uppercase;letter-spacing:2px;">
+          <label>Rejoin code</label>
+          <input type="text" id="join-rejoin-code" maxlength="6" autocomplete="off" style="text-transform:uppercase;letter-spacing:4px;">
         </div>
         <div class="error-msg" id="join-error"></div>
         <button class="btn btn-primary btn-full" id="join-btn">Join Game</button>
+        <button class="btn btn-secondary btn-full" id="rejoin-code-btn" style="margin-top:10px;">Rejoin With Code</button>
         <button class="btn btn-secondary btn-full" id="rejoin-btn" style="display:none;margin-top:10px;">Rejoin Last Game</button>
       </div>
     </div>
@@ -719,6 +746,7 @@
       <button class="btn btn-primary btn-full" id="lobby-start-btn" style="display:none;">Start Game</button>
       <div style="margin-top:8px;text-align:center;">
         <span class="forget-link" id="lobby-leave" style="margin-right:16px;">Leave game</span>
+        <span class="forget-link" id="lobby-move-device" style="margin-right:16px;">Move to another device</span>
         <span class="forget-link" id="lobby-forget">Forget this game</span>
       </div>
 
@@ -788,7 +816,7 @@
 
       <div style="text-align:center;padding-bottom:8px;">
         <span class="forget-link" id="game-leave" style="margin-right:16px;">Leave game</span>
-        <span class="forget-link" id="game-forget">Clear game &amp; start over</span>
+        <span class="forget-link" id="game-move-device">Move to another device</span>
       </div>
 
     </div>
@@ -858,6 +886,8 @@ let state = {
   gameId: null,
   playerToken: null,
   myUsername: null,
+  playerId: null,
+  rejoinCode: null,
   isCreator: false,
   game: null,
   pollTimer: null,
@@ -880,6 +910,8 @@ function saveSession() {
   localStorage.setItem('flux_gameId', state.gameId || '');
   localStorage.setItem('flux_playerToken', state.playerToken || '');
   localStorage.setItem('flux_username', state.myUsername || '');
+  localStorage.setItem('flux_playerId', state.playerId || '');
+  localStorage.setItem('flux_rejoinCode', state.rejoinCode || '');
 }
 function rememberLeftGame(gameId, username) {
   localStorage.setItem('flux_leftGameId', gameId || '');
@@ -899,9 +931,13 @@ function clearSession() {
   localStorage.removeItem('flux_gameId');
   localStorage.removeItem('flux_playerToken');
   localStorage.removeItem('flux_username');
+  localStorage.removeItem('flux_playerId');
+  localStorage.removeItem('flux_rejoinCode');
   state.gameId = null;
   state.playerToken = null;
   state.myUsername = null;
+  state.playerId = null;
+  state.rejoinCode = null;
   state.isCreator = false;
   state.game = null;
 }
@@ -919,6 +955,13 @@ function saveSettings(s) {
   localStorage.setItem('flux_numMetaRounds', s.numMetaRounds);
   localStorage.setItem('flux_scoreTarget',   s.scoreTarget);
   localStorage.setItem('flux_maxPlayers',    s.maxPlayers);
+}
+
+function updateAccessInfo(data) {
+  if (!data) return;
+  if (data.username) state.myUsername = data.username;
+  if (data.player_id) state.playerId = data.player_id;
+  if (data.rejoin_code) state.rejoinCode = data.rejoin_code;
 }
 
 function getKnownUsername() {
@@ -1008,12 +1051,42 @@ function playClapSound() {
   playTone(720, 0.24, 0.06, 'square', 0.02);
 }
 
+function pickSpeechVoice() {
+  if (!('speechSynthesis' in window)) return null;
+  const voices = window.speechSynthesis.getVoices() || [];
+  if (!voices.length) return null;
+
+  const preferredNames = [
+    'Google UK English Male',
+    'Google UK English',
+    'Microsoft Ryan Online (Natural) - English (United Kingdom)',
+    'Microsoft Guy Online (Natural) - English (United States)',
+    'Daniel',
+  ];
+
+  for (const name of preferredNames) {
+    const voice = voices.find(v => v.name === name);
+    if (voice) return voice;
+  }
+
+  const englishMaleish = voices.find(v =>
+    /en-/i.test(v.lang || '') &&
+    /(male|david|daniel|guy|ryan)/i.test(`${v.name} ${v.voiceURI}`)
+  );
+  if (englishMaleish) return englishMaleish;
+
+  const englishVoice = voices.find(v => /en-/i.test(v.lang || ''));
+  return englishVoice || voices[0] || null;
+}
+
 function speak(text) {
   if (!state.soundEnabled || !('speechSynthesis' in window) || !text) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1.02;
-  utterance.pitch = 1.08;
+  const voice = pickSpeechVoice();
+  if (voice) utterance.voice = voice;
+  utterance.rate = 0.98;
+  utterance.pitch = 0.9;
   utterance.volume = 0.85;
   window.speechSynthesis.speak(utterance);
 }
@@ -1084,6 +1157,7 @@ function initSetupScreen() {
 
   document.getElementById('create-btn').addEventListener('click', doCreate);
   document.getElementById('join-btn').addEventListener('click', doJoin);
+  document.getElementById('rejoin-code-btn').addEventListener('click', doRejoinWithCode);
   document.getElementById('rejoin-btn').addEventListener('click', doRejoin);
   document.getElementById('open-create-btn').addEventListener('click', () => openSetupPanel('create'));
   document.getElementById('open-join-btn').addEventListener('click', () => openSetupPanel('join'));
@@ -1091,6 +1165,7 @@ function initSetupScreen() {
   document.getElementById('create-username').addEventListener('keydown', e => { if (e.key === 'Enter') doCreate(); });
   document.getElementById('join-gameid').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
   document.getElementById('join-username').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+  document.getElementById('join-rejoin-code').addEventListener('keydown', e => { if (e.key === 'Enter') doRejoinWithCode(); });
   refreshRejoinButton();
   loadGameBoard();
 }
@@ -1143,6 +1218,7 @@ async function doCreate() {
     });
     state.gameId = data.game_id;
     state.playerToken = data.player_token;
+    updateAccessInfo(data);
     state.myUsername = username;
     state.isCreator = true;
     clearLeftGame();
@@ -1169,6 +1245,7 @@ async function doJoin() {
     const data = await api('POST', `/flux/${gameId}/join`, { username });
     state.gameId = data.game_id;
     state.playerToken = data.player_token;
+    updateAccessInfo(data);
     state.myUsername = data.username;
     state.isCreator = false;
     clearLeftGame();
@@ -1178,6 +1255,39 @@ async function doJoin() {
     err.textContent = e.message;
   } finally {
     btn.disabled = false; btn.textContent = 'Join Game';
+  }
+}
+
+async function doRejoinWithCode() {
+  const username = document.getElementById('join-username').value.trim();
+  const gameId = document.getElementById('join-gameid').value.trim().toUpperCase();
+  const rejoinCode = document.getElementById('join-rejoin-code').value.trim().toUpperCase();
+  const err = document.getElementById('join-error');
+  err.textContent = '';
+  if (!username) { err.textContent = 'Enter a username.'; return; }
+  if (!gameId) { err.textContent = 'Enter a game ID.'; return; }
+  if (!rejoinCode) { err.textContent = 'Enter a rejoin code.'; return; }
+
+  const btn = document.getElementById('rejoin-code-btn');
+  btn.disabled = true;
+  btn.textContent = 'Rejoining…';
+  try {
+    const data = await api('POST', `/flux/${gameId}/rejoin`, {
+      username,
+      rejoin_code: rejoinCode,
+    });
+    state.gameId = data.game_id;
+    state.playerToken = data.player_token;
+    updateAccessInfo(data);
+    state.isCreator = false;
+    clearLeftGame();
+    saveSession();
+    enterLobby();
+  } catch (e) {
+    err.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Rejoin With Code';
   }
 }
 
@@ -1260,6 +1370,7 @@ async function doRejoin() {
   }
   document.getElementById('join-username').value = left.username;
   document.getElementById('join-gameid').value = left.gameId;
+  document.getElementById('join-rejoin-code').value = localStorage.getItem('flux_rejoinCode') || '';
   openSetupPanel('join');
   await doJoin();
 }
@@ -1274,6 +1385,7 @@ function refreshRejoinButton() {
     btn.textContent = `Rejoin ${left.gameId}`;
     document.getElementById('join-username').value = left.username;
     document.getElementById('join-gameid').value = left.gameId;
+    document.getElementById('join-rejoin-code').value = localStorage.getItem('flux_rejoinCode') || '';
   }
 }
 
@@ -1312,6 +1424,7 @@ function initLobbyUI() {
   };
 
   document.getElementById('lobby-leave').onclick = leaveCurrentGame;
+  document.getElementById('lobby-move-device').onclick = showMoveDeviceOverlay;
   document.getElementById('lobby-forget').onclick = forgetAndReset;
 
   // Chat
@@ -1361,7 +1474,7 @@ function enterGame(game) {
   initGameChat();
   document.getElementById('gameover-forget').onclick = forgetAndReset;
   document.getElementById('game-leave').onclick = leaveCurrentGame;
-  document.getElementById('game-forget').onclick = forgetAndReset;
+  document.getElementById('game-move-device').onclick = showMoveDeviceOverlay;
   renderGame(game);
 }
 
@@ -1824,8 +1937,10 @@ function stopBoardPolling() {
 
 async function poll() {
   if (!state.gameId) return;
+  const requestedGameId = state.gameId;
   try {
-    const data = await api('GET', `/flux/${state.gameId}`);
+    const data = await api('GET', `/flux/${requestedGameId}`);
+    if (state.gameId !== requestedGameId) return;
     handleGameState(data);
   } catch(e) {
     // Silent: game might have been reset or server restarted
@@ -1860,21 +1975,74 @@ function handleGameState(game) {
 // =====================================================================
 // UTIL
 // =====================================================================
+function returnToBoard() {
+  stopPolling();
+  stopBoardPolling();
+  state.lastPreviewStatus = null;
+  state.lastBannerKey = null;
+  state.lastGameOverKey = null;
+  state.game = null;
+
+  const overlay = document.getElementById('meta-overlay');
+  if (overlay) overlay.remove();
+  const moveOverlay = document.getElementById('move-device-overlay');
+  if (moveOverlay) moveOverlay.remove();
+
+  const list = document.getElementById('games-list');
+  if (list) delete list.dataset.loaded;
+
+  showScreen('setup-screen');
+  openSetupPanel(null);
+  refreshRejoinButton();
+  startBoardPolling();
+}
+
+function showMoveDeviceOverlay() {
+  if (!state.gameId || !state.myUsername || !state.rejoinCode) return;
+
+  const existing = document.getElementById('move-device-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.id = 'move-device-overlay';
+  overlay.innerHTML = `
+    <div class="overlay-card card">
+      <div class="overlay-title">Move To Another Device</div>
+      <div class="overlay-sub">On your other device, open the game board, enter this game code and your name, then use the rejoin code below.</div>
+      <div class="device-code">
+        <div class="device-code-label">Game ID</div>
+        <div class="device-code-value" style="font-size:24px;letter-spacing:3px;">${esc(state.gameId)}</div>
+      </div>
+      <div class="device-code">
+        <div class="device-code-label">Player</div>
+        <div class="device-code-value" style="font-size:20px;letter-spacing:1px;">${esc(state.myUsername)}</div>
+      </div>
+      <div class="device-code">
+        <div class="device-code-label">Rejoin Code</div>
+        <div class="device-code-value">${esc(state.rejoinCode)}</div>
+      </div>
+      <button class="btn btn-primary btn-full" id="move-device-copy">Copy Rejoin Details</button>
+      <button class="btn btn-secondary btn-full" id="move-device-close" style="margin-top:10px;">Close</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('move-device-copy').onclick = async () => {
+    const text = `Game ID: ${state.gameId}\nPlayer: ${state.myUsername}\nRejoin code: ${state.rejoinCode}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      document.getElementById('move-device-copy').textContent = 'Copied';
+    } catch (e) {}
+  };
+
+  document.getElementById('move-device-close').onclick = () => overlay.remove();
+}
+
 function forgetAndReset() {
   if (confirm('Clear this game and return to setup?')) {
     clearSession();
-    stopPolling();
-    stopBoardPolling();
-    state.lastPreviewStatus = null;
-    state.lastBannerKey = null;
-    state.lastGameOverKey = null;
-    // Remove any lingering overlay
-    const overlay = document.getElementById('meta-overlay');
-    if (overlay) overlay.remove();
-    showScreen('setup-screen');
-    openSetupPanel(null);
-    startBoardPolling();
-    refreshRejoinButton();
+    returnToBoard();
   }
 }
 
@@ -1886,13 +2054,7 @@ async function leaveCurrentGame() {
     await api('POST', `/flux/${state.gameId}/leave`, { player_token: state.playerToken });
     rememberLeftGame(state.gameId, state.myUsername);
     clearSession();
-    stopPolling();
-    stopBoardPolling();
-    state.lastPreviewStatus = null;
-    showScreen('setup-screen');
-    openSetupPanel('join');
-    startBoardPolling();
-    refreshRejoinButton();
+    returnToBoard();
   } catch (e) {
     const err = document.getElementById('join-error');
     if (err) err.textContent = e.message;
@@ -1965,14 +2127,10 @@ function boot() {
       })
       .catch(() => {
         clearSession();
-        showScreen('setup-screen');
-        openSetupPanel(null);
-        startBoardPolling();
+        returnToBoard();
       });
   } else {
-    showScreen('setup-screen');
-    openSetupPanel(null);
-    startBoardPolling();
+    returnToBoard();
   }
 }
 
