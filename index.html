@@ -1628,12 +1628,14 @@ function renderGameBoard(games) {
       const leftGame = loadLeftGame();
       const rememberedUsername = getKnownUsername();
       if (leftGame.gameId === gameId && leftGame.username) {
+        openSetupPanel('join');
         document.getElementById('join-username').value = leftGame.username;
         document.getElementById('join-gameid').value = gameId;
         await doJoin();
         return;
       }
       if (rememberedUsername) {
+        openSetupPanel('join');
         document.getElementById('join-username').value = rememberedUsername;
         document.getElementById('join-gameid').value = gameId;
         await doJoin();
