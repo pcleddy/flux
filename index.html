@@ -1362,7 +1362,9 @@ async function doJoin() {
     state.isCreator = false;
     clearLeftGame();
     saveSession();
-    enterLobby();
+    const game = await api('GET', `/flux/${state.gameId}`);
+    handleGameState(game);
+    startPolling();
   } catch(e) {
     err.textContent = e.message;
   } finally {
@@ -1394,7 +1396,9 @@ async function doRejoinWithCode() {
     state.isCreator = false;
     clearLeftGame();
     saveSession();
-    enterLobby();
+    const game = await api('GET', `/flux/${state.gameId}`);
+    handleGameState(game);
+    startPolling();
   } catch (e) {
     err.textContent = e.message;
   } finally {
