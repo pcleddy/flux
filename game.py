@@ -38,6 +38,8 @@ TIER_RANGES = {
 }
 
 GAME_TTL = 4 * 3600  # 4 hours in seconds
+BOT_NAME = "MEATGRINDER-7"
+BOT_SCORE_FLOOR = 24
 
 
 def generate_rejoin_code() -> str:
@@ -295,12 +297,13 @@ def validate_word(word: str, rack: list[str], tile_values: dict[str, int]) -> tu
 # ---------------------------------------------------------------------------
 
 class PlayerState:
-    def __init__(self, username: str, token: str, join_index: int):
+    def __init__(self, username: str, token: str, join_index: int, is_bot: bool = False):
         self.username = username
         self.player_id = str(uuid.uuid4())
         self.token = token
-        self.rejoin_code = generate_rejoin_code()
+        self.rejoin_code = "" if is_bot else generate_rejoin_code()
         self.join_index = join_index
+        self.is_bot: bool = is_bot
         self.active: bool = True
         self.score: int = 0
         self.meta_wins: int = 0
@@ -312,6 +315,7 @@ class PlayerState:
             "username": self.username,
             "player_id": self.player_id,
             "join_index": self.join_index,
+            "is_bot": self.is_bot,
             "active": self.active,
             "score": self.score,
             "meta_wins": self.meta_wins,
@@ -331,11 +335,13 @@ class FluxGame:
         num_meta_rounds: int,
         score_target: int,
         max_players: int,
+        vs_bot: bool = False,
     ):
         self.game_id = game_id
         self.num_meta_rounds = num_meta_rounds
         self.score_target = score_target
         self.max_players = max_players
+        self.vs_bot = vs_bot
         self.status: str = "waiting"
         self.meta_round: int = 1
         self.round_num: int = 0
@@ -359,6 +365,9 @@ class FluxGame:
         self.players.append(p)
         self.token_map[creator_token] = 0
         self._log(f"🎮 {username} created the game.")
+        if self.vs_bot:
+            self._add_bot_player()
+            self._start_game()
 
     # ------------------------------------------------------------------
     # Helpers
@@ -381,12 +390,75 @@ class FluxGame:
     def _submitted_count(self) -> int:
         return sum(1 for p in self._active_players() if p.current_submission is not None)
 
+    def _bot_players(self) -> list[PlayerState]:
+        return [p for p in self.players if p.active and p.is_bot]
+
+    def _add_bot_player(self) -> None:
+        bot = PlayerState(BOT_NAME, f"bot-{uuid.uuid4()}", len(self.players), is_bot=True)
+        self.players.append(bot)
+        self._log(f"🤖 {bot.username} entered the lobby.")
+
+    def _best_bot_submission(self) -> dict:
+        best_submission: Optional[dict] = None
+        for word in _dictionary:
+            analysis = analyze_word(word, self.current_letters, self.tile_values)
+            if not analysis["ok"]:
+                continue
+            scored = score_word(word, self.tile_values, analysis["joker_letter"])
+            candidate = {
+                "word": word,
+                **scored,
+                "bot_bonus": 0,
+            }
+            if best_submission is None:
+                best_submission = candidate
+                continue
+            if (
+                candidate["points"],
+                len(word),
+                word,
+            ) > (
+                best_submission["points"],
+                len(best_submission["word"]),
+                best_submission["word"],
+            ):
+                best_submission = candidate
+
+        if best_submission is None:
+            return {
+                "word": None,
+                "points": 0,
+                "base_points": 0,
+                "length_bonus": 0,
+                "joker_letter": None,
+                "joker_repeat_penalty": 0,
+                "passed": True,
+                "bot_bonus": 0,
+            }
+
+        if best_submission["points"] < BOT_SCORE_FLOOR:
+            bonus = BOT_SCORE_FLOOR - best_submission["points"] + random.randint(0, 6)
+            best_submission["points"] += bonus
+            best_submission["bot_bonus"] = bonus
+        return best_submission
+
+    def _queue_bot_moves(self) -> None:
+        for bot in self._bot_players():
+            if bot.current_submission is not None:
+                continue
+            bot.current_submission = self._best_bot_submission()
+            if bot.current_submission.get("passed"):
+                self._log(f"🤖 {bot.username} stared into the void and passed.")
+            else:
+                self._log(f"🤖 {bot.username} located a distressingly efficient answer.")
+
     def _spin_rack(self) -> None:
         self.current_letters = draw_rack()
         self.tile_values = flux_algorithm(self.current_letters)
         self.round_num += 1
         for p in self.players:
             p.current_submission = None
+        self._queue_bot_moves()
         self._log(f"➡️ Round {self.round_num} — new letters: {''.join(self.current_letters)}")
 
     def _tone(self, best_points: int) -> str:
@@ -404,6 +476,8 @@ class FluxGame:
         """Returns (ok, token_or_error, final_username)."""
         if self.status == "finished":
             return False, "Game is finished.", None
+        if self.vs_bot:
+            return False, "This is a bot match.", None
 
         for p in self.players:
             if p.username == username and not p.active:
@@ -606,17 +680,20 @@ class FluxGame:
                 "length_bonus": sub["length_bonus"],
                 "joker_letter": sub["joker_letter"],
                 "joker_repeat_penalty": sub["joker_repeat_penalty"],
+                "bot_bonus": sub.get("bot_bonus", 0),
             }
             p.history.append(history_entry)
 
             results.append({
                 "username": p.username,
+                "is_bot": p.is_bot,
                 "word": word_display,
                 "points": pts,
                 "base_points": sub["base_points"],
                 "length_bonus": sub["length_bonus"],
                 "joker_letter": sub["joker_letter"],
                 "joker_repeat_penalty": sub["joker_repeat_penalty"],
+                "bot_bonus": sub.get("bot_bonus", 0),
             })
 
         # Best word this round
@@ -815,6 +892,7 @@ class FluxGame:
         return {
             "game_id": self.game_id,
             "status": self.status,
+            "has_bot": self.vs_bot,
             "num_meta_rounds": self.num_meta_rounds,
             "meta_round": self.meta_round,
             "round_num": self.round_num,

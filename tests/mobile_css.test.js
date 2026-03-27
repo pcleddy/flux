@@ -150,3 +150,10 @@ test('setup: create screen exposes a visible Solo option', () => {
     'Expected a visible Solo option in the max players selector'
   );
 });
+
+test('setup: create screen exposes a visible Bot opponent option', () => {
+  assert.ok(
+    html.includes('id="bot-mode-opts"') && html.includes('data-val="1">Bot</div>'),
+    'Expected a visible Bot option in the opponent selector'
+  );
+});

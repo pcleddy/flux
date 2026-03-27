@@ -160,6 +160,40 @@ class CheckWordApiTests(unittest.TestCase):
         game_id = resp.json()["game_id"]
         self.assertEqual(main.games[game_id].max_players, 1)
 
+    def test_create_game_with_bot_starts_immediately(self):
+        resp = self.client.post(
+            "/flux",
+            json={
+                "username": "solo",
+                "num_meta_rounds": 1,
+                "score_target": 100,
+                "max_players": 1,
+                "vs_bot": True,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        game_id = resp.json()["game_id"]
+        game = main.games[game_id]
+        self.assertEqual(game.status, "playing")
+        self.assertTrue(game.vs_bot)
+        self.assertEqual(game.max_players, 2)
+        self.assertEqual(len(game.players), 2)
+        self.assertTrue(any(p.is_bot for p in game.players))
+
+    def test_create_game_rejects_bot_without_solo(self):
+        resp = self.client.post(
+            "/flux",
+            json={
+                "username": "solo",
+                "num_meta_rounds": 1,
+                "score_target": 100,
+                "max_players": 2,
+                "vs_bot": True,
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("Solo", resp.json()["detail"])
+
 
 if __name__ == "__main__":
     unittest.main()

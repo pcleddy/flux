@@ -58,7 +58,8 @@ def _game_summary(game: FluxGame) -> dict:
         "active_players": len(active_players),
         "max_players": game.max_players,
         "score_target": game.score_target,
-        "can_join": game.status != "finished" and len(active_players) < game.max_players,
+        "has_bot": game.vs_bot,
+        "can_join": game.status != "finished" and not game.vs_bot and len(active_players) < game.max_players,
     }
 
 
@@ -133,6 +134,7 @@ class CreateGameRequest(BaseModel):
     num_meta_rounds: int = 3
     score_target: int = 200
     max_players: int = 2
+    vs_bot: bool = False
 
 
 class JoinRequest(BaseModel):
@@ -182,6 +184,8 @@ def create_game(req: CreateGameRequest):
         raise HTTPException(400, "score_target must be 100, 200, 500, or 1000.")
     if not (1 <= req.max_players <= 6):
         raise HTTPException(400, "max_players must be between 1 and 6.")
+    if req.vs_bot and req.max_players != 1:
+        raise HTTPException(400, "Bot matches require Solo max players.")
     if not req.username.strip():
         raise HTTPException(400, "Username required.")
 
@@ -195,7 +199,8 @@ def create_game(req: CreateGameRequest):
         username=req.username.strip()[:30],
         num_meta_rounds=req.num_meta_rounds,
         score_target=req.score_target,
-        max_players=req.max_players,
+        max_players=2 if req.vs_bot else req.max_players,
+        vs_bot=req.vs_bot,
     )
     games[game_id] = game
     access = game.player_access_dict(token) or {}

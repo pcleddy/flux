@@ -179,6 +179,29 @@
     flex-direction: column;
     gap: 10px;
   }
+  .submit-affirmation {
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-10px);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 50;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: rgba(18, 103, 74, 0.94);
+    color: #ecfff6;
+    border: 1px solid rgba(139, 240, 165, 0.42);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    transition: opacity 120ms ease, transform 160ms ease;
+  }
+  .submit-affirmation.on {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
   .board-debug {
     display: flex;
     justify-content: flex-end;
@@ -586,6 +609,7 @@
   .gameover-trophy { font-size: 64px; margin-bottom: 12px; }
   .gameover-title { font-size: 28px; font-weight: 900; margin-bottom: 6px; }
   .gameover-sub { color: var(--muted); margin-bottom: 28px; }
+  .gameover-last-turn { margin-bottom: 20px; text-align: left; }
   .final-scores { margin-bottom: 28px; text-align: left; }
   .final-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .final-rank { font-size: 20px; font-weight: 900; color: var(--muted); min-width: 28px; }
@@ -772,6 +796,13 @@
             <div class="setting-opt" data-val="6">6</div>
           </div>
         </div>
+        <div class="field">
+          <label>Opponent</label>
+          <div class="setting-row" id="bot-mode-opts">
+            <div class="setting-opt selected" data-val="0">Human</div>
+            <div class="setting-opt" data-val="1">Bot</div>
+          </div>
+        </div>
         <div class="error-msg" id="create-error"></div>
         <button class="btn btn-primary btn-full" id="create-btn">Create Game</button>
       </div>
@@ -915,6 +946,7 @@
       <div class="gameover-trophy">🏆</div>
       <div class="gameover-title" id="gameover-title">Match Over!</div>
       <div class="gameover-sub" id="gameover-sub"></div>
+      <div id="gameover-last-turn"></div>
       <div class="final-scores" id="final-scores"></div>
       <button class="btn btn-primary btn-full" id="rematch-btn">Rematch</button>
       <div style="text-align:center;">
@@ -932,6 +964,7 @@
   <button class="theme-btn" data-theme="noon">noon</button>
   <button class="theme-btn" id="sound-toggle">sound on</button>
 </div>
+<div class="submit-affirmation" id="submit-affirmation"></div>
 
 <!-- Meta-round banner overlay (injected dynamically) -->
 
@@ -976,6 +1009,7 @@ let state = {
   lastGameOverKey: null,
 };
 let cachedSpeechVoices = [];
+let submitAffirmationTimer = null;
 
 // =====================================================================
 // PERSISTENCE
@@ -1023,12 +1057,14 @@ function loadLastSettings() {
     numMetaRounds: parseInt(localStorage.getItem('flux_numMetaRounds') || '3'),
     scoreTarget:   parseInt(localStorage.getItem('flux_scoreTarget')   || '200'),
     maxPlayers:    parseInt(localStorage.getItem('flux_maxPlayers')    || '2'),
+    vsBot:         localStorage.getItem('flux_vsBot') === '1',
   };
 }
 function saveSettings(s) {
   localStorage.setItem('flux_numMetaRounds', s.numMetaRounds);
   localStorage.setItem('flux_scoreTarget',   s.scoreTarget);
   localStorage.setItem('flux_maxPlayers',    s.maxPlayers);
+  localStorage.setItem('flux_vsBot',         s.vsBot ? '1' : '0');
 }
 
 function updateAccessInfo(data) {
@@ -1125,6 +1161,15 @@ function playClapSound() {
   playTone(720, 0.24, 0.06, 'square', 0.02);
 }
 
+function isInlineWordError(message) {
+  return [
+    'Not a word.',
+    "You don't have the letters.",
+    'Word must contain only letters.',
+    'Word must be 2–20 letters long.',
+  ].includes(message);
+}
+
 function refreshSpeechVoices() {
   if (!('speechSynthesis' in window)) return [];
   const voices = window.speechSynthesis.getVoices() || [];
@@ -1188,6 +1233,25 @@ function soundAffirmation(kind) {
   return options[Math.floor(Math.random() * options.length)];
 }
 
+function showSubmitAffirmation() {
+  const el = document.getElementById('submit-affirmation');
+  if (!el) return;
+  const phrases = [
+    'Nice word.',
+    'Strong play.',
+    'That works.',
+    'Lovely.',
+    'Sneaky good.',
+    'That will do nicely.',
+  ];
+  el.textContent = phrases[Math.floor(Math.random() * phrases.length)];
+  el.classList.add('on');
+  if (submitAffirmationTimer) clearTimeout(submitAffirmationTimer);
+  submitAffirmationTimer = setTimeout(() => {
+    el.classList.remove('on');
+  }, 1200);
+}
+
 function runVoiceDebug() {
   if (!('speechSynthesis' in window)) {
     alert('Speech synthesis is not available in this browser.');
@@ -1249,6 +1313,7 @@ function initSetupScreen() {
   selectOpt('meta-rounds-opts', s.numMetaRounds);
   selectOpt('score-target-opts', s.scoreTarget);
   selectOpt('max-players-opts', s.maxPlayers);
+  selectOpt('bot-mode-opts', s.vsBot ? 1 : 0);
 
   // Tab switching
   document.querySelectorAll('.setup-tab').forEach(tab => {
@@ -1256,9 +1321,18 @@ function initSetupScreen() {
   });
 
   // Setting option clicks
-  ['meta-rounds-opts', 'score-target-opts', 'max-players-opts'].forEach(id => {
+  ['meta-rounds-opts', 'score-target-opts', 'max-players-opts', 'bot-mode-opts'].forEach(id => {
     document.getElementById(id).querySelectorAll('.setting-opt').forEach(opt => {
-      opt.addEventListener('click', () => selectOpt(id, parseInt(opt.dataset.val)));
+      opt.addEventListener('click', () => {
+        const value = parseInt(opt.dataset.val);
+        selectOpt(id, value);
+        if (id === 'bot-mode-opts' && value === 1) {
+          selectOpt('max-players-opts', 1);
+        }
+        if (id === 'max-players-opts' && value !== 1 && getSelectedOpt('bot-mode-opts') === 1) {
+          selectOpt('bot-mode-opts', 0);
+        }
+      });
     });
   });
 
@@ -1316,7 +1390,9 @@ async function doCreate() {
     numMetaRounds: getSelectedOpt('meta-rounds-opts') || 3,
     scoreTarget:   getSelectedOpt('score-target-opts') || 200,
     maxPlayers:    getSelectedOpt('max-players-opts') || 2,
+    vsBot:         getSelectedOpt('bot-mode-opts') === 1,
   };
+  if (settings.vsBot) settings.maxPlayers = 1;
   saveSettings(settings);
 
   const btn = document.getElementById('create-btn');
@@ -1327,6 +1403,7 @@ async function doCreate() {
       num_meta_rounds: settings.numMetaRounds,
       score_target:    settings.scoreTarget,
       max_players:     settings.maxPlayers,
+      vs_bot:          settings.vsBot,
     });
     state.gameId = data.game_id;
     state.playerToken = data.player_token;
@@ -1440,9 +1517,9 @@ function renderGameBoard(games) {
         </div>
         <div class="game-state ${esc(game.state)}">${esc(game.state)}</div>
       </div>
-      <div class="game-card-bottom">
-        <div class="game-card-facts">
-          <span>${game.max_players === 1 ? 'solo' : `players ${game.active_players}/${game.max_players}`}</span>
+        <div class="game-card-bottom">
+          <div class="game-card-facts">
+          <span>${game.has_bot ? 'vs bot' : game.max_players === 1 ? 'solo' : `players ${game.active_players}/${game.max_players}`}</span>
           <span>MR ${game.meta_round}/${game.num_meta_rounds}</span>
           <span>round ${game.round_num || 0}</span>
         </div>
@@ -1562,6 +1639,7 @@ function renderLobby(game) {
     <div class="player-row">
       <div class="player-dot"></div>
       <span>${esc(p.username)}</span>
+      ${p.is_bot ? '<span class="player-you">bot</span>' : ''}
       ${p.username === state.myUsername ? '<span class="player-you">you</span>' : ''}
     </div>
   `).join('');
@@ -1571,15 +1649,20 @@ function renderLobby(game) {
   const sub = document.getElementById('lobby-sub');
   if (title) title.textContent = 'Waiting for players…';
   if (sub) sub.textContent = 'Share this link with friends:';
+  if (game.has_bot) {
+    if (title) title.textContent = 'Bot match ready';
+    if (sub) sub.textContent = 'This one launches immediately and keeps the bot in the other seat.';
+    startBtn.style.display = 'none';
+  }
   if (state.isCreator) {
     const activePlayers = game.players.filter(p => p.active).length;
-    startBtn.style.display = 'block';
+    startBtn.style.display = game.has_bot ? 'none' : 'block';
     startBtn.disabled = activePlayers < 1;
-    if (game.max_players === 1) {
+    if (!game.has_bot && game.max_players === 1) {
       if (title) title.textContent = 'Solo game ready';
       if (sub) sub.textContent = 'You can start immediately, or copy the link if you want to reopen this game elsewhere.';
       startBtn.textContent = 'Start Solo Game';
-    } else {
+    } else if (!game.has_bot) {
       startBtn.textContent = activePlayers < 1
         ? 'Waiting for players…'
         : `Start Game (${activePlayers}/${game.max_players})`;
@@ -1621,9 +1704,15 @@ function initGameInput() {
       const data = await api('POST', `/flux/${state.gameId}/play`, { player_token: state.playerToken, word });
       state.lastRoundSubmitted = true;
       playConfirmSound();
+      showSubmitAffirmation();
       handleGameState(data);
     } catch(e) {
-      errorEl.textContent = e.message;
+      if (preview && isInlineWordError(e.message)) {
+        preview.innerHTML = FluxFrontendLogic.buildPreviewHtml({ status: 'invalid', message: e.message }, esc);
+        errorEl.textContent = '';
+      } else {
+        errorEl.textContent = e.message;
+      }
     } finally {
       submitBtn.disabled = false;
     }
@@ -1879,7 +1968,7 @@ function renderScoreboard(game) {
       : '';
     return `<div class="score-row">
       <div class="score-row-top">
-        <span class="score-name${isMe ? ' you' : ''}">${esc(p.username)}</span>
+        <span class="score-name${isMe ? ' you' : ''}">${esc(p.username)}${p.is_bot ? ' <span style="color:var(--muted);font-size:11px;font-weight:700;">BOT</span>' : ''}</span>
         ${metaStr ? `<span style="font-size:12px;">${metaStr}</span>` : ''}
         <span class="score-pts">${p.score}</span>
         <span class="score-meta">/ ${game.score_target}</span>
@@ -2017,11 +2106,33 @@ function renderGameOver(game) {
     ? `Final results after ${game.num_meta_rounds} meta-round${game.num_meta_rounds > 1 ? 's' : ''}.`
     : 'Everyone left, so this game was closed.';
 
+  const finalTurn = document.getElementById('gameover-last-turn');
+  const lastSummary = game.last_round_summary;
+  if (finalTurn) {
+    if (lastSummary && lastSummary.results && lastSummary.results.length) {
+      const rowsHtml = lastSummary.results.map(r =>
+        `<div class="overlay-last-turn-row">
+          <span class="overlay-last-word">${esc(r.word || 'PASS')}</span>
+          <span class="overlay-last-player">${esc(r.username)}</span>
+          <span class="overlay-last-pts">+${r.points}</span>
+        </div>`
+      ).join('');
+      finalTurn.className = 'overlay-last-turn gameover-last-turn';
+      finalTurn.innerHTML = `
+        <div class="overlay-last-turn-label">Final turn</div>
+        ${rowsHtml}
+      `;
+    } else {
+      finalTurn.className = 'gameover-last-turn';
+      finalTurn.innerHTML = '';
+    }
+  }
+
   const medals = ['🥇', '🥈', '🥉'];
   document.getElementById('final-scores').innerHTML = sorted.map((p, i) =>
     `<div class="final-row">
       <div class="final-rank">${medals[i] || (i + 1)}</div>
-      <div class="final-name">${esc(p.username)}${p.username === state.myUsername ? ' <span style="color:var(--accent);font-size:12px;">(you)</span>' : ''}</div>
+      <div class="final-name">${esc(p.username)}${p.is_bot ? ' <span style="color:var(--muted);font-size:12px;">(bot)</span>' : ''}${p.username === state.myUsername ? ' <span style="color:var(--accent);font-size:12px;">(you)</span>' : ''}</div>
       <div class="final-wins">${p.meta_wins} win${p.meta_wins !== 1 ? 's' : ''}</div>
     </div>`
   ).join('');

@@ -94,5 +94,42 @@ class LeaveRejoinTests(unittest.TestCase):
         self.assertIsNone(self.game.winner)
 
 
+class BotGameTests(unittest.TestCase):
+    def setUp(self):
+        set_dictionary({"CARS", "STAR", "SCAR", "RATS"}, "test")
+
+    def test_bot_match_adds_bot_and_autostarts(self):
+        game = FluxGame(
+            game_id="BOT12345",
+            creator_token="tok-alice",
+            username="alice",
+            num_meta_rounds=1,
+            score_target=100,
+            max_players=2,
+            vs_bot=True,
+        )
+        self.assertEqual(game.status, "playing")
+        self.assertTrue(game.vs_bot)
+        self.assertEqual(len(game.players), 2)
+        bot = next(p for p in game.players if p.is_bot)
+        self.assertEqual(bot.username, "MEATGRINDER-7")
+        self.assertIsNotNone(bot.current_submission)
+
+    def test_bot_match_rejects_human_join(self):
+        game = FluxGame(
+            game_id="BOT12345",
+            creator_token="tok-alice",
+            username="alice",
+            num_meta_rounds=1,
+            score_target=100,
+            max_players=2,
+            vs_bot=True,
+        )
+        ok, msg, username = game.join("bob")
+        self.assertFalse(ok)
+        self.assertEqual(msg, "This is a bot match.")
+        self.assertIsNone(username)
+
+
 if __name__ == "__main__":
     unittest.main()
