@@ -144,56 +144,238 @@
 
   /* ---- Setup Screen ---- */
   #setup-screen {
-    align-items: center; justify-content: center; padding: 20px;
+    align-items: center; justify-content: center; padding: 28px;
   }
-  .setup-wrap { width: 100%; max-width: 420px; }
-  .logo { font-size: 48px; font-weight: 900; letter-spacing: -2px; color: var(--accent); margin-bottom: 6px; text-shadow: 0 0 28px rgba(212, 122, 232, 0.24); }
-  .logo-sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+  .setup-wrap { width: 100%; max-width: 520px; }
+  .board-panel {
+    padding: 22px 24px;
+    margin-bottom: 18px;
+  }
+  .board-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .board-title {
+    font-size: 24px;
+    font-weight: 900;
+    margin-bottom: 4px;
+  }
+  .board-sub {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .board-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .games-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .game-card {
+    background: rgba(31, 26, 57, 0.76);
+    border: 1px solid rgba(88, 78, 140, 0.55);
+    border-radius: 16px;
+    padding: 14px;
+  }
+  .game-card-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .game-card-id {
+    font-family: monospace;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--accent2);
+  }
+  .game-card-meta {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 3px;
+  }
+  .game-state {
+    margin-left: auto;
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+  }
+  .game-state.waiting {
+    color: var(--yellow);
+    background: rgba(255, 208, 74, 0.12);
+    border-color: rgba(255, 208, 74, 0.32);
+  }
+  .game-state.active {
+    color: var(--green);
+    background: rgba(139, 240, 165, 0.12);
+    border-color: rgba(139, 240, 165, 0.28);
+  }
+  .game-state.finished {
+    color: var(--muted);
+    background: rgba(170, 160, 207, 0.1);
+    border-color: rgba(170, 160, 207, 0.18);
+  }
+  .game-card-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .game-card-facts {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    color: var(--text);
+    font-size: 13px;
+  }
+  .empty-games {
+    padding: 18px;
+    border-radius: 16px;
+    background: rgba(31, 26, 57, 0.68);
+    border: 1px dashed rgba(108, 92, 161, 0.56);
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.6;
+  }
+  .setup-hero {
+    margin-bottom: 18px;
+    padding: 22px 24px;
+    border-radius: 24px;
+    background:
+      radial-gradient(circle at top right, rgba(240, 143, 210, 0.16), transparent 34%),
+      linear-gradient(180deg, rgba(44, 38, 80, 0.96), rgba(31, 26, 57, 0.96));
+    border: 1px solid rgba(108, 92, 161, 0.58);
+    box-shadow: var(--shadow);
+  }
+  .logo-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .logo { font-size: 52px; font-weight: 900; letter-spacing: -2px; color: var(--accent); margin-bottom: 6px; text-shadow: 0 0 28px rgba(212, 122, 232, 0.24); }
+  .logo-sub { color: var(--muted); font-size: 14px; line-height: 1.5; max-width: 320px; }
+  .hero-pill {
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(255, 208, 74, 0.14);
+    border: 1px solid rgba(255, 208, 74, 0.35);
+    color: var(--yellow);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .setup-glance {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .glance-card {
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(29, 24, 55, 0.85);
+    border: 1px solid rgba(88, 78, 140, 0.56);
+  }
+  .glance-label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .glance-value {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text);
+  }
 
-  .setup-tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+  .setup-tabs { display: none; gap: 4px; margin-bottom: 20px; }
   .setup-tab {
-    flex: 1; padding: 9px; border-radius: var(--radius-sm); cursor: pointer;
-    text-align: center; font-size: 13px; font-weight: 600;
-    background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
+    flex: 1; padding: 12px; border-radius: 16px; cursor: pointer;
+    text-align: center; font-size: 13px; font-weight: 800;
+    background: rgba(31, 26, 57, 0.95); color: var(--muted); border: 1px solid rgba(88, 78, 140, 0.56);
     transition: all 0.15s;
   }
-  .setup-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .setup-tab.active {
+    background: linear-gradient(180deg, rgba(227, 132, 223, 0.24), rgba(183, 102, 213, 0.2));
+    color: #fff;
+    border-color: rgba(235, 148, 221, 0.65);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+  }
 
   .setup-panel { display: none; }
   .setup-panel.active { display: block; }
+  .setup-panel.card { padding: 24px; }
+  .panel-title {
+    font-size: 20px;
+    font-weight: 900;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .panel-sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 18px;
+  }
 
   .setting-row {
-    display: flex; gap: 8px; margin-bottom: 8px;
+    display: flex; gap: 10px; margin-bottom: 8px;
   }
   .setting-opt {
-    flex: 1; padding: 9px; text-align: center; border-radius: var(--radius-sm);
-    cursor: pointer; font-size: 13px; font-weight: 600;
-    background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
+    flex: 1; padding: 12px 9px; text-align: center; border-radius: 14px;
+    cursor: pointer; font-size: 13px; font-weight: 800;
+    background: rgba(31, 26, 57, 0.92); color: var(--muted); border: 1px solid rgba(88, 78, 140, 0.56);
     transition: all 0.15s;
   }
-  .setting-opt.selected { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .setting-opt.selected {
+    background: linear-gradient(180deg, rgba(255, 216, 91, 0.18), rgba(247, 190, 57, 0.14));
+    color: var(--yellow);
+    border-color: rgba(255, 208, 74, 0.55);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+  }
 
   /* ---- Lobby Screen ---- */
   #lobby-screen { align-items: center; justify-content: center; padding: 20px; }
-  .lobby-wrap { width: 100%; max-width: 420px; }
-  .lobby-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-  .lobby-sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .lobby-wrap { width: 100%; max-width: 520px; }
+  .lobby-title { font-size: 26px; font-weight: 900; margin-bottom: 6px; }
+  .lobby-sub { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
   .lobby-link-box {
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: var(--radius-sm); padding: 10px 14px;
-    font-size: 13px; color: var(--muted); margin-bottom: 16px;
+    background: rgba(31, 26, 57, 0.88); border: 1px solid rgba(88, 78, 140, 0.56);
+    border-radius: 16px; padding: 12px 14px;
+    font-size: 13px; color: var(--muted); margin-bottom: 18px;
     display: flex; align-items: center; gap: 8px; cursor: pointer;
     transition: border-color 0.15s;
   }
   .lobby-link-box:hover { border-color: var(--accent); }
   .lobby-link-url { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 12px; color: var(--text); }
-  .player-list { margin-bottom: 16px; }
+  .player-list { margin-bottom: 18px; }
   .player-row {
     display: flex; align-items: center; gap: 10px;
-    padding: 8px 0; border-bottom: 1px solid var(--border);
+    padding: 12px 14px;
+    border: 1px solid rgba(88, 78, 140, 0.5);
+    border-radius: 14px;
+    background: rgba(31, 26, 57, 0.7);
+    margin-bottom: 8px;
     font-size: 14px;
   }
-  .player-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .player-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); flex-shrink: 0; box-shadow: 0 0 16px rgba(139, 240, 165, 0.45); }
   .player-you { font-size: 11px; color: var(--accent); font-weight: 600; margin-left: auto; }
 
   /* ---- Game Screen ---- */
@@ -404,6 +586,10 @@
   @media (max-width: 700px) {
     #game-screen { flex-direction: column; padding: 16px; }
     .game-rail { width: 100%; }
+    .setup-glance { grid-template-columns: 1fr; }
+    .logo-row { flex-direction: column; align-items: flex-start; }
+    .board-top { flex-direction: column; }
+    .board-actions { justify-content: flex-start; }
   }
 </style>
 </head>
@@ -413,16 +599,53 @@
   <!-- ═══════════════════════════════ SETUP SCREEN ═══════════════════════════════ -->
   <div id="setup-screen" class="screen">
     <div class="setup-wrap">
-      <div class="logo">FLUX</div>
-      <div class="logo-sub">Multiplayer word scoring — values change every round</div>
+      <div class="setup-hero">
+        <div class="logo-row">
+          <div>
+            <div class="logo">FLUX</div>
+            <div class="logo-sub">8 playable letters. Find a word. Best score wins the round, and the whole match keeps shifting under your feet.</div>
+          </div>
+          <div class="hero-pill">Live Match Lobby</div>
+        </div>
+        <div class="setup-glance">
+          <div class="glance-card">
+            <div class="glance-label">Format</div>
+            <div class="glance-value">Solo or multiplayer</div>
+          </div>
+          <div class="glance-card">
+            <div class="glance-label">Scoring</div>
+            <div class="glance-value">Values change every round</div>
+          </div>
+          <div class="glance-card">
+            <div class="glance-label">Goal</div>
+            <div class="glance-value">Hit target, win meta-rounds</div>
+          </div>
+        </div>
+      </div>
 
-      <div class="setup-tabs">
+      <div class="board-panel card">
+        <div class="board-top">
+          <div>
+            <div class="board-title">Current Games</div>
+            <div class="board-sub">Join something already running, or start a fresh lobby. This board stays visible even when there are no games yet.</div>
+          </div>
+          <div class="board-actions">
+            <button class="btn btn-primary" id="open-create-btn">Create A Game</button>
+            <button class="btn btn-secondary" id="open-join-btn">Join By Code</button>
+          </div>
+        </div>
+        <div id="games-list" class="games-list"></div>
+      </div>
+
+      <div class="setup-tabs" id="setup-tabs">
         <div class="setup-tab active" data-tab="create">Create</div>
         <div class="setup-tab" data-tab="join">Join</div>
       </div>
 
       <!-- Create panel -->
       <div class="setup-panel active card" id="panel-create">
+        <div class="panel-title">Create A Game</div>
+        <div class="panel-sub">Spin up a lobby, pick the match shape, and send the code to friends when you are ready.</div>
         <div class="field">
           <label>Your username</label>
           <input type="text" id="create-username" maxlength="30" autocomplete="off">
@@ -459,6 +682,8 @@
 
       <!-- Join panel -->
       <div class="setup-panel card" id="panel-join">
+        <div class="panel-title">Join Or Rejoin</div>
+        <div class="panel-sub">Drop in with a game code, or jump back into an unfinished match you already left.</div>
         <div class="field">
           <label>Your username</label>
           <input type="text" id="join-username" maxlength="30" autocomplete="off">
@@ -634,6 +859,7 @@ let state = {
   isCreator: false,
   game: null,
   pollTimer: null,
+  boardPollTimer: null,
   lastRoundNum: null,
   lastRoundSubmitted: false, // track whether we already showed submitted for this round
   previewTimer: null,
@@ -691,6 +917,21 @@ function saveSettings(s) {
   localStorage.setItem('flux_numMetaRounds', s.numMetaRounds);
   localStorage.setItem('flux_scoreTarget',   s.scoreTarget);
   localStorage.setItem('flux_maxPlayers',    s.maxPlayers);
+}
+
+function getKnownUsername() {
+  const candidates = [
+    state.myUsername,
+    document.getElementById('join-username')?.value,
+    document.getElementById('create-username')?.value,
+    loadLastUsername(),
+    loadLeftGame().username,
+  ];
+  for (const value of candidates) {
+    const trimmed = (value || '').trim();
+    if (trimmed) return trimmed;
+  }
+  return '';
 }
 
 // =====================================================================
@@ -800,6 +1041,9 @@ function showScreen(id) {
   const el = document.getElementById(id);
   if (el) el.classList.add('active');
   if (id !== 'game-screen') clearPlaySurface();
+  if (id === 'setup-screen') {
+    window.scrollTo(0, 0);
+  }
 }
 
 // =====================================================================
@@ -815,7 +1059,7 @@ function initSetupScreen() {
   const urlGame = new URLSearchParams(location.search).get('game');
   if (urlGame) {
     document.getElementById('join-gameid').value = urlGame.toUpperCase();
-    switchTab('join');
+    openSetupPanel('join');
   }
 
   // Pre-fill settings
@@ -826,7 +1070,7 @@ function initSetupScreen() {
 
   // Tab switching
   document.querySelectorAll('.setup-tab').forEach(tab => {
-    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    tab.addEventListener('click', () => openSetupPanel(tab.dataset.tab));
   });
 
   // Setting option clicks
@@ -839,17 +1083,26 @@ function initSetupScreen() {
   document.getElementById('create-btn').addEventListener('click', doCreate);
   document.getElementById('join-btn').addEventListener('click', doJoin);
   document.getElementById('rejoin-btn').addEventListener('click', doRejoin);
+  document.getElementById('open-create-btn').addEventListener('click', () => openSetupPanel('create'));
+  document.getElementById('open-join-btn').addEventListener('click', () => openSetupPanel('join'));
 
   document.getElementById('create-username').addEventListener('keydown', e => { if (e.key === 'Enter') doCreate(); });
   document.getElementById('join-gameid').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
   document.getElementById('join-username').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
   refreshRejoinButton();
+  loadGameBoard();
 }
 
-function switchTab(tab) {
+function openSetupPanel(tab) {
   document.querySelectorAll('.setup-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.setup-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('panel-' + tab).classList.add('active');
+  const tabs = document.getElementById('setup-tabs');
+  if (tab) {
+    if (tabs) tabs.style.display = 'flex';
+    document.getElementById('panel-' + tab).classList.add('active');
+  } else if (tabs) {
+    tabs.style.display = 'none';
+  }
 }
 
 function selectOpt(containerId, val) {
@@ -926,6 +1179,74 @@ async function doJoin() {
   }
 }
 
+async function loadGameBoard() {
+  const list = document.getElementById('games-list');
+  if (!list) return;
+  if (!list.dataset.loaded) {
+    list.innerHTML = `<div class="empty-games">Loading current games…</div>`;
+  }
+  try {
+    const data = await api('GET', '/flux');
+    list.dataset.loaded = 'true';
+    renderGameBoard(data.games || []);
+  } catch (e) {
+    list.innerHTML = `<div class="empty-games">Couldn’t load the game list right now.</div>`;
+  }
+}
+
+function renderGameBoard(games) {
+  const list = document.getElementById('games-list');
+  if (!list) return;
+  const left = loadLeftGame();
+  if (!games.length) {
+    list.innerHTML = `<div class="empty-games">No games yet. Create a game to start the board.</div>`;
+    return;
+  }
+
+  list.innerHTML = games.map(game => `
+    <div class="game-card">
+      <div class="game-card-top">
+        <div>
+          <div class="game-card-id">${esc(game.game_id)}</div>
+          <div class="game-card-meta">creator: ${esc(game.creator || 'unknown')}</div>
+        </div>
+        <div class="game-state ${esc(game.state)}">${esc(game.state)}</div>
+      </div>
+      <div class="game-card-bottom">
+        <div class="game-card-facts">
+          <span>players ${game.active_players}/${game.max_players}</span>
+          <span>MR ${game.meta_round}/${game.num_meta_rounds}</span>
+          <span>round ${game.round_num || 0}</span>
+        </div>
+        <button class="btn ${game.can_join ? 'btn-primary' : 'btn-secondary'}" ${game.can_join ? '' : 'disabled'} data-join-game="${esc(game.game_id)}">${left.gameId === game.game_id ? 'Rejoin' : 'Join'}</button>
+      </div>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('[data-join-game]').forEach(btn => {
+    btn.onclick = async () => {
+      const gameId = btn.dataset.joinGame;
+      const leftGame = loadLeftGame();
+      const rememberedUsername = getKnownUsername();
+      if (leftGame.gameId === gameId && leftGame.username) {
+        document.getElementById('join-username').value = leftGame.username;
+        document.getElementById('join-gameid').value = gameId;
+        await doJoin();
+        return;
+      }
+      if (rememberedUsername) {
+        document.getElementById('join-username').value = rememberedUsername;
+        document.getElementById('join-gameid').value = gameId;
+        await doJoin();
+        return;
+      }
+      document.getElementById('join-gameid').value = gameId;
+      openSetupPanel('join');
+      document.getElementById('join-username').focus();
+    };
+  });
+}
+
 async function doRejoin() {
   const left = loadLeftGame();
   const err = document.getElementById('join-error');
@@ -937,7 +1258,7 @@ async function doRejoin() {
   }
   document.getElementById('join-username').value = left.username;
   document.getElementById('join-gameid').value = left.gameId;
-  switchTab('join');
+  openSetupPanel('join');
   await doJoin();
 }
 
@@ -958,6 +1279,7 @@ function refreshRejoinButton() {
 // LOBBY
 // =====================================================================
 function enterLobby() {
+  stopBoardPolling();
   showScreen('lobby-screen');
   startPolling();
   initLobbyUI();
@@ -1030,6 +1352,7 @@ function renderLobby(game) {
 // GAME
 // =====================================================================
 function enterGame(game) {
+  stopBoardPolling();
   showScreen('game-screen');
   state.lastRoundNum = game.round_num;
   initGameInput();
@@ -1045,10 +1368,12 @@ function initGameInput() {
   const submitBtn = document.getElementById('submit-btn');
   const passBtn = document.getElementById('pass-btn');
   const errorEl = document.getElementById('word-error');
+  const preview = document.getElementById('score-preview');
 
   submitBtn.onclick = async () => {
     const word = input.value.trim().toUpperCase();
     errorEl.textContent = '';
+    if (preview) preview.innerHTML = '';
     if (!word) { errorEl.textContent = 'Type a word first.'; return; }
     submitBtn.disabled = true;
     try {
@@ -1065,6 +1390,7 @@ function initGameInput() {
 
   passBtn.onclick = async () => {
     errorEl.textContent = '';
+    if (preview) preview.innerHTML = '';
     passBtn.disabled = true;
     try {
       const data = await api('POST', `/flux/${state.gameId}/pass`, { player_token: state.playerToken });
@@ -1431,6 +1757,7 @@ function renderMetaBanner(game) {
 // GAME OVER
 // =====================================================================
 function renderGameOver(game) {
+  stopBoardPolling();
   showScreen('gameover-screen');
 
   const gameOverKey = `${game.game_id}:${game.winner}:${game.num_meta_rounds}`;
@@ -1483,6 +1810,16 @@ function stopPolling() {
   if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
 }
 
+function startBoardPolling() {
+  stopBoardPolling();
+  loadGameBoard();
+  state.boardPollTimer = setInterval(loadGameBoard, 3000);
+}
+
+function stopBoardPolling() {
+  if (state.boardPollTimer) { clearInterval(state.boardPollTimer); state.boardPollTimer = null; }
+}
+
 async function poll() {
   if (!state.gameId) return;
   try {
@@ -1525,6 +1862,7 @@ function forgetAndReset() {
   if (confirm('Clear this game and return to setup?')) {
     clearSession();
     stopPolling();
+    stopBoardPolling();
     state.lastPreviewStatus = null;
     state.lastBannerKey = null;
     state.lastGameOverKey = null;
@@ -1532,6 +1870,8 @@ function forgetAndReset() {
     const overlay = document.getElementById('meta-overlay');
     if (overlay) overlay.remove();
     showScreen('setup-screen');
+    openSetupPanel(null);
+    startBoardPolling();
     refreshRejoinButton();
   }
 }
@@ -1545,9 +1885,11 @@ async function leaveCurrentGame() {
     rememberLeftGame(state.gameId, state.myUsername);
     clearSession();
     stopPolling();
+    stopBoardPolling();
     state.lastPreviewStatus = null;
     showScreen('setup-screen');
-    switchTab('join');
+    openSetupPanel('join');
+    startBoardPolling();
     refreshRejoinButton();
   } catch (e) {
     const err = document.getElementById('join-error');
@@ -1622,9 +1964,13 @@ function boot() {
       .catch(() => {
         clearSession();
         showScreen('setup-screen');
+        openSetupPanel(null);
+        startBoardPolling();
       });
   } else {
     showScreen('setup-screen');
+    openSetupPanel(null);
+    startBoardPolling();
   }
 }
 

@@ -37,6 +37,31 @@ app.add_middleware(
 games: dict[str, FluxGame] = {}
 
 
+def _board_state(game: FluxGame) -> str:
+    if game.status == "waiting":
+        return "waiting"
+    if game.status == "finished":
+        return "finished"
+    return "active"
+
+
+def _game_summary(game: FluxGame) -> dict:
+    active_players = [p for p in game.players if getattr(p, "active", True)]
+    creator = min(game.players, key=lambda p: p.join_index).username if game.players else None
+    return {
+        "game_id": game.game_id,
+        "creator": creator,
+        "state": _board_state(game),
+        "round_num": game.round_num,
+        "meta_round": game.meta_round,
+        "num_meta_rounds": game.num_meta_rounds,
+        "active_players": len(active_players),
+        "max_players": game.max_players,
+        "score_target": game.score_target,
+        "can_join": game.status != "finished" and len(active_players) < game.max_players,
+    }
+
+
 def _get_game(game_id: str) -> FluxGame:
     g = games.get(game_id.upper())
     if g is None:
@@ -136,6 +161,12 @@ class ChatRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+@app.get("/flux")
+def list_games():
+    _purge_expired()
+    ordered_games = sorted(games.values(), key=lambda g: g.created_at, reverse=True)
+    return {"games": [_game_summary(game) for game in ordered_games]}
 
 @app.post("/flux")
 def create_game(req: CreateGameRequest):

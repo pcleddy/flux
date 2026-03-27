@@ -111,6 +111,19 @@ class CheckWordApiTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(main.games[self.game_id].status, "finished")
 
+    def test_list_games_returns_board_summary(self):
+        resp = self.client.get("/flux")
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.json()
+        self.assertIn("games", payload)
+        self.assertEqual(len(payload["games"]), 1)
+        game = payload["games"][0]
+        self.assertEqual(game["game_id"], self.game_id)
+        self.assertEqual(game["creator"], "alice")
+        self.assertEqual(game["state"], "active")
+        self.assertEqual(game["active_players"], 2)
+        self.assertTrue(game["can_join"] is False)
+
 
 if __name__ == "__main__":
     unittest.main()
